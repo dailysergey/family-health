@@ -4,6 +4,7 @@ import { LabGroup } from "@/components/LabGroup";
 import { DiagnosisCard } from "@/components/widgets/DiagnosisCard";
 import { TrendChartCard } from "@/components/widgets/TrendChartCard";
 import { MetricRing } from "@/components/widgets/MetricRing";
+import { WearablesCard } from "@/components/widgets/WearablesCard";
 import { DocumentList } from "@/components/DocumentList";
 import { UploadDropzone } from "@/components/UploadDropzone";
 
@@ -54,6 +55,12 @@ export function Dashboard({ bundle, conversationId }: { bundle: MemberBundle; co
             <div className="text-callout text-text-secondary mt-1">Требуют внимания</div>
           </div>
         </div>
+
+        {member.wearables?.enabled && (
+          <Section title="Носимое устройство">
+            <WearablesCard memberId={member.id} />
+          </Section>
+        )}
 
         {diagnoses.length > 0 && (
           <Section title="Диагнозы">

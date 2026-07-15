@@ -59,6 +59,92 @@ export async function getDocuments(memberId: string): Promise<DocumentMeta[]> {
   return readJSON<DocumentMeta[]>(path.join(memberDir(memberId), "documents.json"), []);
 }
 
+// ---- Wearables (ghealth-synced daily rollups) ----
+
+export type WearablesDaily = {
+  date: string;
+  steps?: number;
+  heartRateAvg?: number;
+  heartRateMin?: number;
+  heartRateMax?: number;
+  activeEnergyKcal?: number;
+  activeZoneMinutes?: number;
+  sleepMinutes?: number;
+  restingHeartRate?: number;
+  hrvRmssd?: number;
+  spo2?: number;
+  vo2max?: number;
+};
+
+/** Flatten a raw ghealth rollup file into a compact daily summary. */
+function normalizeWearables(raw: unknown, date: string): WearablesDaily {
+  const r = raw as Record<string, unknown>;
+  const pickPoint = <T = Record<string, unknown>>(field: string): T | undefined => {
+    const v = r?.[field] as { dataPoints?: T[] } | T[] | undefined;
+    if (!v) return undefined;
+    if (Array.isArray(v)) return v[0];
+    return v.dataPoints?.[0];
+  };
+  const num = (v: unknown): number | undefined => {
+    if (v === undefined || v === null || v === "") return undefined;
+    const n = typeof v === "string" ? Number(v) : (v as number);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  const steps = pickPoint<Record<string, unknown>>("steps");
+  const hr = pickPoint<Record<string, unknown>>("heart_rate");
+  const aek = pickPoint<Record<string, unknown>>("active_energy_kcal");
+  const azm = pickPoint<Record<string, unknown>>("active_zone_minutes");
+  const rhr = pickPoint<Record<string, unknown>>("resting_heart_rate");
+  const hrv = pickPoint<Record<string, unknown>>("hrv");
+  const spo2 = pickPoint<Record<string, unknown>>("spo2");
+  const vo2 = pickPoint<Record<string, unknown>>("vo2max");
+  const sleepList = (r?.sleep as { dataPoints?: Record<string, unknown>[] })?.dataPoints ?? [];
+
+  const sleepMinutes = sleepList.reduce<number | undefined>((acc, s) => {
+    const m = num(s?.minutesAsleep) ?? num(s?.totalMinutesAsleep);
+    return m === undefined ? acc : (acc ?? 0) + m;
+  }, undefined);
+
+  return {
+    date,
+    steps: num(steps?.countSum) ?? num(steps?.total),
+    heartRateAvg: num(hr?.beatsPerMinuteAvg),
+    heartRateMin: num(hr?.beatsPerMinuteMin),
+    heartRateMax: num(hr?.beatsPerMinuteMax),
+    activeEnergyKcal: num(aek?.kcalSum),
+    activeZoneMinutes: num(azm?.activeZoneMinutesSum) ?? num(azm?.total),
+    sleepMinutes,
+    restingHeartRate: num(rhr?.beatsPerMinute),
+    hrvRmssd: num(hrv?.rmssd),
+    spo2: num(spo2?.percentage),
+    vo2max: num(vo2?.vo2Max) ?? num(vo2?.value),
+  };
+}
+
+/** Read the last `days` daily rollup files for a member (chronological). */
+export async function getWearables(memberId: string, days = 30): Promise<WearablesDaily[]> {
+  const dir = path.join(memberDir(memberId), "wearables");
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const dayFiles = entries
+    .filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
+    .sort()
+    .slice(-days);
+
+  return Promise.all(
+    dayFiles.map(async (f) => {
+      const date = f.replace(/\.json$/, "");
+      const raw = await readJSON<unknown>(path.join(dir, f), {});
+      return normalizeWearables(raw, date);
+    }),
+  );
+}
+
 const CATEGORY_FOLDERS = ["Анализы", "Заключения", "Выписки", "Снимки", "_inbox"];
 
 /** Create a new family member: append to family.json and scaffold their folder. */

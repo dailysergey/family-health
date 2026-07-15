@@ -6,6 +6,8 @@ A self-hosted family health dashboard driven by [Claude Code](https://docs.anthr
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
+![Wearables](docs/screenshots/wearables.png)
+
 Apple Health–inspired UI (dark/light, Russian by default). Drop a PDF into the browser and the agent files it, extracts labs, updates diagnoses, and renders a report widget in the chat.
 
 ## Why
@@ -26,7 +28,7 @@ Everything stays local. No SaaS platform gets our medical records. The only outb
 - **Dashboard** — active diagnoses, recent labs grouped by canonical panels (CBC, biochem, lipid profile, hormones, vitamins…), metric trends (weight, glucose, BP), documents with drag-and-drop upload.
 - **Chat with your data** — right-hand panel; the agent reads the active member's folder, answers questions about labs, generates reports, files new documents. Widgets stream in as `SummaryCard`, `TrendChartCard`, `ReportCard`.
 - **Structured output only** — the agent talks to the browser exclusively through the `health-ui` MCP server (`emit_message`, `emit_widget`, `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`, `run_finished`). The Claude terminal is never scraped.
-- **Wearables (optional)** — pull data from Fitbit Air, Pixel Watch, Wear OS and anything else that talks to [Google Health API v4](https://developers.google.com/health) via the [`ghealth`](https://github.com/Google-Health-API/google-health-cli) CLI. Daily rollups (steps, resting HR, sleep stages, VO₂max, HRV, SpO₂) land next to labs under `data/<memberId>/wearables/YYYY-MM-DD.json` and the agent reads them alongside everything else. See [`wearables/README.md`](wearables/README.md).
+- **Wearables (optional)** — pull data from Fitbit Air, Pixel Watch, Wear OS and anything else that talks to [Google Health API v4](https://developers.google.com/health) via the [`ghealth`](https://github.com/Google-Health-API/google-health-cli) CLI. Daily rollups (steps, HR avg/min/max, active kcal — plus sleep, resting HR, VO₂max after the device's 7-day calibration) land next to labs under `data/<memberId>/wearables/YYYY-MM-DD.json`. The dashboard shows a dedicated "Wearables" section with stats tiles and 30-day trend charts; the agent can also read the rollups directly. See [`wearables/README.md`](wearables/README.md) for what actually comes through for each device.
 - **Session reuse** — one persistent tmux session (`health`) with `claude` runs in the background; each request is a `send-keys` into that REPL. No cold-start per message.
 - **Local storage only** — everything lives in `data/`. The only outbound traffic is Claude Code's normal LLM calls under your subscription.
 

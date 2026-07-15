@@ -23,6 +23,13 @@ export interface FamilyMember {
   birthDate: string; // ISO date
   sex: "male" | "female";
   accent: Accent;
+  wearables?: {
+    enabled: boolean;
+    device?: string;
+    account?: string;
+    ghealth_config_dir?: string;
+    sync_days?: number;
+  };
 }
 
 export interface LabResult {

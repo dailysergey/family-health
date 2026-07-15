@@ -6,6 +6,8 @@ Self-hosted семейный дашборд здоровья с [Claude Code](ht
 
 ![Дашборд](docs/screenshots/dashboard.png)
 
+![Носимое устройство](docs/screenshots/wearables.png)
+
 Интерфейс в стиле Apple Health (тёмная/светлая тема, русский). Кинь PDF в браузер — агент разложит по категориям, вытащит анализы, обновит диагнозы и покажет виджет-отчёт в чате.
 
 ## Зачем это
@@ -26,7 +28,7 @@ Self-hosted семейный дашборд здоровья с [Claude Code](ht
 - **Дашборд** — активные диагнозы, последние анализы, сгруппированные по каноническим панелям (ОАК, биохимия, липидный профиль, гормоны, витамины…), тренды метрик (вес, глюкоза, давление), документы с drag-and-drop.
 - **Чат по своим данным** — правая колонка. Агент читает папку активного члена, отвечает на вопросы по анализам, генерирует отчёты, разбирает загруженные документы. Виджеты стримятся как `SummaryCard`, `TrendChartCard`, `ReportCard`.
 - **Только структурированный вывод** — общение с браузером идёт исключительно через MCP-сервер `health-ui` (`emit_message`, `emit_widget`, `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`, `run_finished`). Терминал Claude не парсится.
-- **Носимые устройства (опция)** — тянуть данные с Fitbit Air, Pixel Watch, Wear OS и всего, что публикует в [Google Health API v4](https://developers.google.com/health), через CLI [`ghealth`](https://github.com/Google-Health-API/google-health-cli). Дневные rollup'ы (шаги, resting HR, стадии сна, VO₂max, HRV, SpO₂) ложатся рядом с анализами: `data/<memberId>/wearables/YYYY-MM-DD.json`, агент читает их наравне с остальным. См. [`wearables/README.md`](wearables/README.md).
+- **Носимые устройства (опция)** — тянуть данные с Fitbit Air, Pixel Watch, Wear OS и всего, что публикует в [Google Health API v4](https://developers.google.com/health), через CLI [`ghealth`](https://github.com/Google-Health-API/google-health-cli). Дневные rollup'ы (шаги, ЧСС avg/min/max, активные калории — плюс сон, resting HR, VO₂max после 7-дневной калибровки устройства) ложатся рядом с анализами: `data/<memberId>/wearables/YYYY-MM-DD.json`. Дашборд показывает отдельную секцию «Носимое устройство» с плитками показателей и 30-дневными графиками; агент может читать rollup'ы напрямую. См. [`wearables/README.md`](wearables/README.md) — что реально приходит по каждому устройству.
 - **Переиспользуемая сессия** — один tmux `health` с `claude` живёт фоном, каждое сообщение — `send-keys` в этот REPL. Никакого холодного старта на запрос.
 - **Всё локально** — данные в `data/`. Наружу летят только LLM-вызовы Claude Code под твоей подпиской.
 
