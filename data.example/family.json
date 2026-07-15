@@ -5,7 +5,13 @@
     "relation": "Папа",
     "birthDate": "1990-01-01",
     "sex": "male",
-    "accent": "medications"
+    "accent": "medications",
+    "wearables": {
+      "enabled": true,
+      "device": "Fitbit Air",
+      "ghealth_config_dir": "~/.config/ghealth/parent1",
+      "sync_days": 3
+    }
   },
   {
     "id": "parent2",

@@ -16,6 +16,8 @@ Now everything is one folder per person on my server. I drop a new PDF into `_in
 
 **The best part is bringing it to a doctor's appointment.** I open the dashboard for whichever kid is being seen — all their active diagnoses, latest labs by panel and trends over the past year are visible at a glance. No more "there was something about hemoglobin last summer, wasn't there?", no more digging through email for the original lab PDF. If the doctor wants the source — one tap opens the original file from the folder.
 
+Wearables slot into the same folder: my Fitbit Air pushes daily steps, resting HR, sleep stages and VO₂max via `ghealth` into `data/<me>/wearables/`, so the agent can correlate a bad set of labs with three weeks of terrible sleep before I even ask.
+
 Everything stays local. No SaaS platform gets our medical records. The only outbound traffic is Claude Code's normal LLM calls under a subscription I already pay for.
 
 ## Features
@@ -24,6 +26,7 @@ Everything stays local. No SaaS platform gets our medical records. The only outb
 - **Dashboard** — active diagnoses, recent labs grouped by canonical panels (CBC, biochem, lipid profile, hormones, vitamins…), metric trends (weight, glucose, BP), documents with drag-and-drop upload.
 - **Chat with your data** — right-hand panel; the agent reads the active member's folder, answers questions about labs, generates reports, files new documents. Widgets stream in as `SummaryCard`, `TrendChartCard`, `ReportCard`.
 - **Structured output only** — the agent talks to the browser exclusively through the `health-ui` MCP server (`emit_message`, `emit_widget`, `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`, `run_finished`). The Claude terminal is never scraped.
+- **Wearables (optional)** — pull data from Fitbit Air, Pixel Watch, Wear OS and anything else that talks to [Google Health API v4](https://developers.google.com/health) via the [`ghealth`](https://github.com/Google-Health-API/google-health-cli) CLI. Daily rollups (steps, resting HR, sleep stages, VO₂max, HRV, SpO₂) land next to labs under `data/<memberId>/wearables/YYYY-MM-DD.json` and the agent reads them alongside everything else. See [`wearables/README.md`](wearables/README.md).
 - **Session reuse** — one persistent tmux session (`health`) with `claude` runs in the background; each request is a `send-keys` into that REPL. No cold-start per message.
 - **Local storage only** — everything lives in `data/`. The only outbound traffic is Claude Code's normal LLM calls under your subscription.
 

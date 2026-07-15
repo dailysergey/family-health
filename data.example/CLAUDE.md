@@ -50,6 +50,33 @@
 Файлы можно читать своими инструментами (Read), чтобы отвечать на вопросы. **Изменять** данные —
 только через инструменты `health-ui` (они делают атомарную запись и обновляют дашборд).
 
+## Данные с носимых устройств (`wearables/`)
+
+Если у члена семьи включён wearables-sync (`family.json > wearables.enabled: true`),
+в его папке появляются дневные rollup-файлы: `wearables/YYYY-MM-DD.json` +
+symlink `wearables/latest.json` на самый свежий. Формат — один документ на день:
+
+```json
+{
+  "date": "2026-07-14", "member": "parent1", "source": "ghealth",
+  "steps": {"total": 8942, "goal": 10000},
+  "heart_rate": {"avg": 68, "resting": 58, "min": 52, "max": 128},
+  "sleep": {"minutesAsleep": 428, "efficiency": 92, "stages": {...}},
+  "active_energy_kcal": 512, "active_zone_minutes": 41,
+  "vo2max": 42.1, "spo2_avg": 96.5, "hrv_rmssd": 47
+}
+```
+
+Как пользоваться:
+- Читать напрямую через Read; для тренда за N дней — читать N файлов.
+- Строить графики `trend_chart` со значениями resting HR, sleep efficiency, VO₂max — эти
+  метрики полезно смотреть в динамике 30/90 дней.
+- Сопоставлять с лабораторными: рост resting HR + падение HRV пару недель подряд —
+  сигнал воспаления/стресса; отметь в ответе.
+- **Не записывать** в wearables/ — это read-only слой от `ghealth`. Если пользователь
+  хочет пометить событие (болезнь, тренировка) — пиши в `metrics.json` через
+  `update_member_json`.
+
 ## Схемы props для emit_widget
 
 - **lab_card**: `{ name, value, unit, status, refLow?, refHigh?, refText?, date?, trend?, history?:[{date,value}] }`

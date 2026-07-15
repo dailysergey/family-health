@@ -1,0 +1,16 @@
+# Скопировать в /etc/cron.d/family-health-wearables и обновить путь до репо.
+# Хост, не контейнер (ghealth и OAuth-токены живут на хосте).
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Каждое утро в 06:15 UTC (≈ 09:15 МСК) — тянем последние 2 дня для всех активных членов.
+15 6 * * *  root  cd /opt/family-health && bash wearables/sync.sh --days 2 >> /var/log/family-health-sync.log 2>&1
+
+# Дополнительный поздний прогон в 22:15 UTC (≈ 01:15 МСК следующего дня),
+# чтобы захватить данные, которые пришли после утренней синхронизации.
+15 22 * * *  root  cd /opt/family-health && bash wearables/sync.sh --days 1 >> /var/log/family-health-sync.log 2>&1
+
+# Раз в неделю — глубокий catch-up на 14 дней (на случай, если провайдер задним числом
+# доставил что-то — Fitbit иногда прилетает пачкой при переподключении).
+30 4 * * 1  root  cd /opt/family-health && bash wearables/sync.sh --days 14 >> /var/log/family-health-sync.log 2>&1

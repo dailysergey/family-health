@@ -1,0 +1,28 @@
+{
+  "date": "2026-07-14",
+  "member": "parent1",
+  "source": "ghealth",
+  "device": "Fitbit Air",
+  "steps": {
+    "total": 8942,
+    "goal": 10000,
+    "distance_meters": 6812
+  },
+  "heart_rate": {
+    "avg": 68,
+    "min": 52,
+    "max": 128,
+    "resting": 58
+  },
+  "sleep": {
+    "minutesAsleep": 428,
+    "minutesAwake": 34,
+    "efficiency": 92,
+    "stages": {"deep": 84, "rem": 96, "light": 248}
+  },
+  "active_energy_kcal": 512,
+  "active_zone_minutes": 41,
+  "vo2max": 42.1,
+  "spo2_avg": 96.5,
+  "hrv_rmssd": 47
+}

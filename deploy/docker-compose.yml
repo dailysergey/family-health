@@ -24,6 +24,10 @@ services:
       # in-container `claude` has nothing to authenticate with.
       - ${CLAUDE_DIR:-~/.claude}:/root/.claude
       - ${CLAUDE_JSON:-~/.claude.json}:/root/.claude.json
+
+      # ghealth (Google Health CLI) config with OAuth tokens for wearables sync.
+      # Optional: only needed if you enable wearables in family.json.
+      - ${GHEALTH_CONFIG_DIR:-~/.config/ghealth}:/root/.config/ghealth
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3100/api/members"]
       interval: 30s

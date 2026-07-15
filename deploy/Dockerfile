@@ -6,11 +6,18 @@ FROM node:20-bookworm-slim
 
 # --- system deps ------------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      tmux ca-certificates curl git tini \
+      tmux ca-certificates curl git tini jq golang-go \
     && rm -rf /var/lib/apt/lists/*
 
 # --- Claude Code CLI --------------------------------------------------------
 RUN npm install -g @anthropic-ai/claude-code
+
+# --- ghealth (Google Health API CLI) — optional wearables sync --------------
+# The binary lives in the image so `wearables/sync.sh` can run either on the
+# host (recommended: OAuth is on the host) or inside the container.
+RUN git clone --depth 1 https://github.com/Google-Health-API/google-health-cli.git /tmp/ghealth \
+    && cd /tmp/ghealth && go build -o /usr/local/bin/ghealth . \
+    && rm -rf /tmp/ghealth
 
 # --- app --------------------------------------------------------------------
 WORKDIR /app
@@ -27,6 +34,8 @@ RUN cd mcp && npm ci
 COPY web/ ./web/
 COPY mcp/ ./mcp/
 COPY runtime/ ./runtime/
+COPY wearables/ ./wearables/
+COPY data.example/ ./data.example/
 COPY ecosystem.config.js ./
 
 # 4. build Next.js
