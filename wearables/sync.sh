@@ -59,15 +59,15 @@ sync_member() {
       # Pull each metric individually; ghealth's daily-rollup schema differs by type.
       # jq -n --slurpfile assembles the aggregate.
       local tmp; tmp=$(mktemp)
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data steps                      daily-rollup --from "$d" --to "$d" --json 2>/dev/null > "$tmp.steps"       || echo '{}' > "$tmp.steps"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data heart-rate                 daily-rollup --from "$d" --to "$d" --json 2>/dev/null > "$tmp.hr"          || echo '{}' > "$tmp.hr"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data sleep                      list          --from "$d" --to "$d" --json 2>/dev/null > "$tmp.sleep"       || echo '[]' > "$tmp.sleep"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data active-energy-burned       daily-rollup --from "$d" --to "$d" --json 2>/dev/null > "$tmp.aek"         || echo '{}' > "$tmp.aek"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data active-zone-minutes        daily-rollup --from "$d" --to "$d" --json 2>/dev/null > "$tmp.azm"         || echo '{}' > "$tmp.azm"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data daily-resting-heart-rate   list          --from "$d" --to "$d" --json 2>/dev/null > "$tmp.rhr"         || echo '[]' > "$tmp.rhr"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data daily-heart-rate-variability list        --from "$d" --to "$d" --json 2>/dev/null > "$tmp.hrv"         || echo '[]' > "$tmp.hrv"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data daily-oxygen-saturation    list          --from "$d" --to "$d" --json 2>/dev/null > "$tmp.spo2"        || echo '[]' > "$tmp.spo2"
-      GHEALTH_CONFIG_DIR="$cfg" ghealth data vo2-max                    list          --from "$d" --to "$d" --json 2>/dev/null > "$tmp.vo2"         || echo '[]' > "$tmp.vo2"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data steps                      daily-rollup --from "$d" --to "$d" 2>/dev/null > "$tmp.steps"       || echo '{}' > "$tmp.steps"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data heart-rate                 daily-rollup --from "$d" --to "$d" 2>/dev/null > "$tmp.hr"          || echo '{}' > "$tmp.hr"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data sleep                      list          --from "$d" --to "$d" 2>/dev/null > "$tmp.sleep"       || echo '[]' > "$tmp.sleep"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data active-energy-burned       daily-rollup --from "$d" --to "$d" 2>/dev/null > "$tmp.aek"         || echo '{}' > "$tmp.aek"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data active-zone-minutes        daily-rollup --from "$d" --to "$d" 2>/dev/null > "$tmp.azm"         || echo '{}' > "$tmp.azm"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data daily-resting-heart-rate   list          --from "$d" --to "$d" 2>/dev/null > "$tmp.rhr"         || echo '[]' > "$tmp.rhr"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data daily-heart-rate-variability list        --from "$d" --to "$d" 2>/dev/null > "$tmp.hrv"         || echo '[]' > "$tmp.hrv"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data daily-oxygen-saturation    list          --from "$d" --to "$d" 2>/dev/null > "$tmp.spo2"        || echo '[]' > "$tmp.spo2"
+      GHEALTH_CONFIG_DIR="$cfg" ghealth data vo2-max                    list          --from "$d" --to "$d" 2>/dev/null > "$tmp.vo2"         || echo '[]' > "$tmp.vo2"
 
       jq -n \
         --arg date "$d" --arg member "$mid" \
