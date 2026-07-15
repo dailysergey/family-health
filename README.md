@@ -4,6 +4,8 @@
 
 A self-hosted family health dashboard driven by [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as the on-device assistant. One folder per family: labs, diagnoses, discharges, imaging. Data lives in JSON and plain folders on your disk — no cloud, no database. Runs on your Claude Code subscription (OAuth via the CLI), no API keys required.
 
+![Dashboard](docs/screenshots/dashboard.png)
+
 Apple Health–inspired UI (dark/light, Russian by default). Drop a PDF into the browser and the agent files it, extracts labs, updates diagnoses, and renders a report widget in the chat.
 
 ## Features
