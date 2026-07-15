@@ -1,137 +1,104 @@
 # family-health
 
-Self-hosted семейный дашборд здоровья с интерактивным ассистентом Claude Code.
+**English** | [Русский](README.ru.md)
 
-Ведёшь одну папку на семью: анализы, диагнозы, выписки, снимки — данные хранятся
-локально в JSON и обычных папках, никаких облаков. Ассистент читает эту папку,
-разбирает загруженные PDF/JPG документы, отвечает на вопросы про анализы,
-строит графики и генерирует отчёты через AG-UI-виджеты.
+A self-hosted family health dashboard driven by [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as the on-device assistant. One folder per family: labs, diagnoses, discharges, imaging. Data lives in JSON and plain folders on your disk — no cloud, no database. Runs on your Claude Code subscription (OAuth via the CLI), no API keys required.
 
-Интерфейс — Next.js 15 в стиле Apple Health (тёмная/светлая тема, русский).
+Apple Health–inspired UI (dark/light, Russian by default). Drop a PDF into the browser and the agent files it, extracts labs, updates diagnoses, and renders a report widget in the chat.
 
-## Как это работает
+## Features
 
-```
-Браузер ──POST /api/chat──▶ Next.js ──tmux send-keys──▶ [tmux «health»: claude REPL]
-                                                              │ вызывает MCP-инструменты
-                                                              ▼
-Браузер ◀──SSE /api/events── Next.js ◀──POST /api/ingest── health-ui MCP (дочерний к claude)
-```
+- **Family view** — one card per person on the left; add new members from the UI. Each member has their own folder with `labs.json`, `diagnoses.json`, `metrics.json`, `documents.json` and category subfolders (`Анализы`, `Заключения`, `Выписки`, `Снимки`, `_inbox`).
+- **Dashboard** — active diagnoses, recent labs grouped by canonical panels (CBC, biochem, lipid profile, hormones, vitamins…), metric trends (weight, glucose, BP), documents with drag-and-drop upload.
+- **Chat with your data** — right-hand panel; the agent reads the active member's folder, answers questions about labs, generates reports, files new documents. Widgets stream in as `SummaryCard`, `TrendChartCard`, `ReportCard`.
+- **Structured output only** — the agent talks to the browser exclusively through the `health-ui` MCP server (`emit_message`, `emit_widget`, `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`, `run_finished`). The Claude terminal is never scraped.
+- **Session reuse** — one persistent tmux session (`health`) with `claude` runs in the background; each request is a `send-keys` into that REPL. No cold-start per message.
+- **Local storage only** — everything lives in `data/`. The only outbound traffic is Claude Code's normal LLM calls under your subscription.
 
-- **Пользователь** пишет сообщение в панели чата (правая колонка).
-- **Next.js** сохраняет его, форматирует как `[conv:...][run:...][member:...] <текст>`
-  и отправляет в tmux-сессию `health` через `tmux send-keys`.
-- **Claude Code** внутри tmux читает данные семьи (папку `data/<memberId>/`),
-  думает и вызывает MCP-инструменты сервера `health-ui`:
-  - `emit_message` — текстовый ответ (Markdown);
-  - `emit_widget` — визуализация: `SummaryCard`, `TrendChartCard`, `ReportCard`;
-  - `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`
-    — изменения в данных;
-  - `run_finished` — маркер конца ответа.
-- **MCP-сервер** POST-ит каждое событие в `/api/ingest` веб-приложения.
-- **Next.js** транслирует события в браузер по SSE (`/api/events`).
-- **Браузер** рендерит текст и виджеты в чат, дашборд обновляется по данным.
-
-Терминал Claude никогда не парсится — структурированный вывод идёт только через
-MCP-инструменты. Это делает интеграцию устойчивой к смене TUI Claude Code.
-
-### Что видно в интерфейсе
-
-- **Слева** — карточки членов семьи, кнопка «Добавить члена семьи».
-- **В центре** — активные диагнозы, последние анализы (сгруппированы по панелям:
-  ОАК, биохимия, липидный профиль, гормоны и т.д.), тренды метрик, документы
-  с drag&drop-загрузкой.
-- **Справа** — чат с Claude, история сохраняется в `data/<memberId>/chat.json`.
-
-## Структура данных
+## Architecture
 
 ```
-data/
-├── family.json                   # массив членов семьи (id, ФИО, дата, пол, accent)
-├── .mcp.json                     # конфиг MCP-сервера health-ui для claude
-├── CLAUDE.md                     # системная инструкция для агента
-└── <memberId>/                   # любой slug (parent1, mom, kid...)
-    ├── labs.json                 # анализы (с units, refRange, статусами, историей)
-    ├── diagnoses.json            # диагнозы (ICD-10 опционально)
-    ├── metrics.json              # тренды (вес, давление, глюкоза)
-    ├── documents.json            # документы (filename, path, category, summary)
-    ├── chat.json                 # история переписки
-    ├── Анализы/                  # PDF-файлы анализов
-    ├── Заключения/               # заключения врачей
-    ├── Выписки/                  # стационарные выписки
-    ├── Снимки/                   # УЗИ/МРТ/КТ снимки
-    └── _inbox/                   # входящие файлы (агент разберёт и разложит)
+Browser ──POST /api/chat──▶ Next.js ──tmux send-keys──▶ [tmux "health": claude REPL]
+                                                            │  MCP tools (health-ui)
+                                                            ▼
+Browser ◀──SSE /api/events── Next.js ◀──POST /api/ingest── health-ui MCP server
+
+web/                Next.js 15 (App Router) + React 19 + Tailwind + recharts
+  src/app/api/        chat, ingest, events (SSE), upload, members, auth
+  src/components/     Sidebar, Dashboard, ChatPanel, widgets/, LabGroup, ...
+  src/lib/tmux.ts     send-keys wrapper around the "health" tmux session
+mcp/                health-ui MCP server (stdio, TypeScript via tsx)
+  src/index.ts        the seven tools listed above
+runtime/            start-claude.sh: idempotently boots the tmux session
+data.example/       skeleton to copy to data/ on first run
 ```
 
-Пример скелета — в `data.example/`. Скопируй в `data/` и наполняй.
+Personal data (`data/`) and env (`web/.env.local`) are gitignored — see `data.example/` for the layout.
 
-## Установка
+## Working with the chat
 
-Требования: Node.js 20+, tmux, Claude Code CLI (`claude`), pm2 (опционально для prod).
+The chat panel is the primary way to interact with the agent. Everything you type is prefixed on the way to Claude with `[conv:<id>][run:<id>][member:<memberId>]`, so the agent always knows which family member's folder to read.
+
+**What you can ask.** Questions about labs (`"объясни ферритин 12, это норма?"`, `"когда последний раз сдавали ТТГ?"`), trends (`"покажи вес за последний год"`, `"как менялось давление?"`), diagnoses (`"что у меня из активного?"`, `"когда пересдать глюкозу?"`), or a full report (`"собери отчёт по последнему визиту к терапевту"`).
+
+**How answers appear.** The agent replies via one or more streamed events, in order:
+- text messages (`emit_message`) rendered as Markdown;
+- widgets (`emit_widget`) — `SummaryCard` for a bullet-list summary, `TrendChartCard` for a line/area chart, `ReportCard` for a structured multi-section report;
+- data-mutation tool calls (`add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`) — the dashboard reloads on their side, so you see new labs/diagnoses appear immediately in the center column.
+
+The turn ends with `run_finished`, which unlocks the input.
+
+**Uploading documents.** Drag a PDF/JPG onto the documents area (or the whole page) and it lands in `data/<memberId>/_inbox/`. Then ask the agent `"разбери входящие"` — it reads each file, extracts labs/diagnoses, files the document into the right category (`Анализы` / `Заключения` / `Выписки` / `Снимки`), updates the JSON, and reports back with widgets. If it can't tell what a file is (photo, screenshot), it moves it to `_media/` and leaves it alone.
+
+**History.** Every conversation is persisted to `data/<memberId>/chat.json` — resume by refreshing the page. Each member has their own thread; switching a member in the sidebar switches the transcript. Delete a message via the chat UI to drop it from the file too.
+
+**Switching members.** The sidebar always dictates the active `memberId`. Ask something without switching first and the agent will answer about whoever is highlighted — including for kids, spouse, etc.
+
+**Voice.** If your browser supports the Web Speech API and the language is set to Russian (the UI is RU by default), the microphone button transcribes voice input into the chat box. No server-side ASR is bundled — everything happens in the browser.
+
+**Tips.**
+- Ask for a specific format: `"выведи табличкой"`, `"дай график"`, `"summary в трёх пунктах"`.
+- Combine actions: `"разбери входящие и обнови диагнозы, потом собери отчёт"` — the agent processes them sequentially in one turn.
+- If a widget looks off, just ask: `"перерисуй график только за 2026"`.
+- Rename or move a member's folder → refresh; `family.json` is the source of truth for the sidebar.
+
+## Quick start
+
+Requirements: Node.js 20+, tmux, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) authenticated (`claude` in `$PATH`, OAuth done), pm2 optional for production.
 
 ```bash
-git clone git@github.com:dailysergey/family-health.git
-cd family-health
+git clone git@github.com:dailysergey/family-health.git && cd family-health
 
-# 1. web
 cp web/.env.example web/.env.local
-# отредактируй web/.env.local: HEALTH_DATA_DIR, HEALTH_PIN, HEALTH_INGEST_SECRET
+# edit: HEALTH_DATA_DIR, HEALTH_PIN, HEALTH_INGEST_SECRET
 (cd web && npm install && npm run build)
-
-# 2. mcp-сервер health-ui
 (cd mcp && npm install)
 
-# 3. данные
 cp -r data.example data
-# синхронизируй HEALTH_INGEST_SECRET между web/.env.local и data/.mcp.json
+# make HEALTH_INGEST_SECRET in web/.env.local match data/.mcp.json
 
-# 4. tmux-сессия с Claude
-bash runtime/start-claude.sh
-# при желании понаблюдать: tmux attach -t health
-
-# 5. запуск
-cd web && PORT=3100 npm start
-# либо через pm2:
-# pm2 start ecosystem.config.js
+bash runtime/start-claude.sh       # tmux new-session -d -s health "claude ..."
+cd web && PORT=3100 npm start      # or: pm2 start ecosystem.config.js
 ```
 
-Открой `http://localhost:3100`, введи PIN из `web/.env.local`.
+Open <http://localhost:3100>, log in with the PIN from `web/.env.local`.
 
-## Переменные окружения (`web/.env.local`)
+### Environment variables (`web/.env.local`)
 
-| Переменная | Назначение | По умолчанию |
+| Variable | Default | Purpose |
 |---|---|---|
-| `HEALTH_DATA_DIR` | Путь к папке с данными семьи | `./data` |
-| `HEALTH_TMUX_SESSION` | Имя tmux-сессии для Claude | `health` |
-| `HEALTH_INGEST_SECRET` | Секрет для `/api/ingest` (совпадает с `data/.mcp.json`) | *обязательно задать* |
-| `HEALTH_PIN` | PIN для входа в веб | *обязательно задать* |
-| `HEALTH_START_SCRIPT` | Путь к скрипту старта tmux | `./runtime/start-claude.sh` |
+| `HEALTH_DATA_DIR` | — | absolute path to the family data folder |
+| `HEALTH_TMUX_SESSION` | `health` | tmux session name driving Claude |
+| `HEALTH_INGEST_SECRET` | — | shared secret for `/api/ingest` (must match `data/.mcp.json`) |
+| `HEALTH_PIN` | — | web-login PIN |
+| `HEALTH_START_SCRIPT` | `./runtime/start-claude.sh` | script that boots the tmux session |
 
-## Безопасность
+## Safety
 
-- Данные и переписка хранятся локально в файловой системе. Ничего не уходит наружу,
-  кроме LLM-запросов от Claude Code к Anthropic API (это твой API-ключ на твоём
-  профиле Claude Code).
-- Claude запущен с `--dangerously-skip-permissions` — агент может читать и
-  двигать файлы в папке `data/` без подтверждений. Запускай **только на своей
-  машине или в доверенной среде**, не выставляй tmux-сокет в сеть.
-- PIN-аутентификация — минимальный барьер, не замена нормальной авторизации.
-  За публичным reverse-proxy (nginx/traefik) добавь HTTPS + rate-limit + отдельный
-  слой авторизации (basic auth / OIDC), если хочешь открывать в интернет.
-- Никогда не коммить `data/` и `web/.env.local` — они в `.gitignore`.
+Claude runs with `--dangerously-skip-permissions` so it can autonomously read files, move documents between folders, and call MCP tools without prompting. Only run this on a trusted machine, don't expose the tmux socket, and put a real auth layer (basic-auth / OIDC) in front of `PORT=3100` if you publish it. The PIN is a minimal check, not a replacement for proper auth.
 
-## Стек
+Nothing here is a substitute for a doctor — the assistant helps you make sense of labs, not diagnose.
 
-- **Frontend/Backend**: Next.js 15 (App Router), React 19, TypeScript, TailwindCSS,
-  next-themes, recharts, react-markdown.
-- **AG-UI**: `@ag-ui/core` + `@ag-ui/client` для потока событий и рендеринга виджетов.
-- **MCP-сервер**: собственный `health-ui` (`mcp/src/index.ts`) на `tsx`.
-- **LLM-агент**: Claude Code CLI внутри tmux-сессии, чтобы веб-приложение могло
-  переиспользовать один REPL и не платить за холодный старт каждой команды.
-- **Хранилище**: обычные JSON-файлы + папки на диске. Никакой БД.
+## License
 
-## Лицензия
-
-MIT — используй как хочешь, но помни: это персональный проект, никаких гарантий
-про медицинскую корректность. Ассистент помогает разбирать анализы, но не заменяет
-врача. Проверяй важные интерпретации сам.
+MIT
