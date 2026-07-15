@@ -1,0 +1,26 @@
+[
+  {
+    "id": "parent1",
+    "name": "Иванов Иван Иванович",
+    "relation": "Папа",
+    "birthDate": "1990-01-01",
+    "sex": "male",
+    "accent": "medications"
+  },
+  {
+    "id": "parent2",
+    "name": "Иванова Мария Ивановна",
+    "relation": "Мама",
+    "birthDate": "1990-01-01",
+    "sex": "female",
+    "accent": "reproductive"
+  },
+  {
+    "id": "child1",
+    "name": "Иванов Ребёнок Иванович",
+    "relation": "Сын",
+    "birthDate": "2020-01-01",
+    "sex": "male",
+    "accent": "nutrition"
+  }
+]

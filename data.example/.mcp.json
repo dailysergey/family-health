@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "health-ui": {
+      "command": "npx",
+      "args": ["tsx", "../mcp/src/index.ts"],
+      "env": {
+        "HEALTH_DATA_DIR": ".",
+        "HEALTH_INGEST_URL": "http://localhost:3100/api/ingest",
+        "HEALTH_INGEST_SECRET": "change-me-in-env-local"
+      }
+    }
+  }
+}

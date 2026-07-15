@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Backgrounds */
+  --color-bg-primary: #f2f2f7;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #f2f2f7;
+  --color-bg-elevated: #ffffff;
+
+  /* Separators & Fills */
+  --color-separator: #c6c6c8;
+  --color-fill-quaternary: #e5e5ea;
+
+  /* Text */
+  --color-text-primary: #1c1c1e;
+  --color-text-secondary: #636366;
+  --color-text-tertiary: #8e8e93;
+  --color-text-quaternary: #aeaeb2;
+  --color-text-on-accent: #ffffff;
+
+  /* Health Domain Accents */
+  --color-activity: #ff375f;
+  --color-heart: #ff3a30;
+  --color-mindfulness: #32ade6;
+  --color-nutrition: #34c759;
+  --color-sleep: #5e5ce6;
+  --color-medications: #007aff;
+  --color-body: #ff9500;
+  --color-labs: #af52de;
+  --color-reproductive: #ff2d55;
+  --color-hearing: #30b0c7;
+
+  /* Status */
+  --color-status-normal: #34c759;
+  --color-status-high: #ff3a30;
+  --color-status-low: #007aff;
+  --color-status-borderline: #ff9500;
+  --color-status-critical: #ff2d55;
+
+  /* Brand */
+  --color-brand: #007aff;
+
+  /* Shadows */
+  --shadow-card: 0 2px 8px 0 rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
+  --shadow-modal: 0 8px 32px 0 rgba(0, 0, 0, 0.16);
+
+  /* Radii */
+  --radius-card: 20px;
+  --radius-inner: 12px;
+  --radius-chip: 8px;
+}
+
+.dark {
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #1c1c1e;
+  --color-bg-tertiary: #2c2c2e;
+  --color-bg-elevated: #3a3a3c;
+  --color-separator: #38383a;
+  --color-fill-quaternary: #3a3a3c;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #aeaeb2;
+  --color-text-tertiary: #8e8e93;
+  --color-text-quaternary: #636366;
+
+  --color-activity: #ff6b81;
+  --color-heart: #ff6259;
+  --color-mindfulness: #5ac8fa;
+  --color-nutrition: #30d158;
+  --color-sleep: #7d7aff;
+  --color-medications: #0a84ff;
+  --color-body: #ff9f0a;
+  --color-labs: #bf5af2;
+  --color-reproductive: #ff375f;
+  --color-hearing: #40cbe0;
+
+  --color-status-normal: #30d158;
+  --color-status-high: #ff6259;
+  --color-status-low: #0a84ff;
+  --color-status-borderline: #ff9f0a;
+  --color-status-critical: #ff375f;
+
+  --color-brand: #0a84ff;
+
+  --shadow-card: 0 2px 8px 0 rgba(0, 0, 0, 0.32);
+  --shadow-card-hover: 0 4px 16px 0 rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 8px 32px 0 rgba(0, 0, 0, 0.56);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lightweight markdown styling for chat bubbles and report widgets */
+.markdown > *:first-child {
+  margin-top: 0;
+}
+.markdown > *:last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: 0.4em 0;
+}
+.markdown strong {
+  font-weight: 600;
+}
+.markdown ul,
+.markdown ol {
+  margin: 0.4em 0;
+  padding-left: 1.1em;
+}
+.markdown li {
+  margin: 0.15em 0;
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+  background: var(--color-bg-tertiary);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+}
+.markdown a {
+  color: var(--color-brand);
+}
+
+/* Subtle custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-fill-quaternary);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,68 @@
+# --- dependencies ------------------------------------------------------------
+node_modules/
+web/node_modules/
+mcp/node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# --- build / cache -----------------------------------------------------------
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- env / secrets -----------------------------------------------------------
+.env
+.env.*
+!.env.example
+web/.env
+web/.env.*
+!web/.env.example
+
+# --- personal / runtime data (family medical records) ------------------------
+# The `data/` directory holds actual family medical data (labs, diagnoses,
+# scans, chat transcripts). NEVER commit this. Use `data.example/` as the
+# template and copy it to `data/` on first run.
+data/
+!data.example/
+
+# --- Claude Code local state -------------------------------------------------
+.claude/
+**/.claude/
+!data.example/.mcp.json
+
+# --- editors / OS ------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- logs --------------------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pm2*.log
+
+# --- runtime -----------------------------------------------------------------
+/tmp/
+runtime/*.pid
+runtime/*.sock
+
+# --- pm2 dumps ---------------------------------------------------------------
+.pm2/
+
+# --- misc --------------------------------------------------------------------
+*.pem
+.vercel
+coverage/
