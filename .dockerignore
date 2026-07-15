@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/.env
+**/.env.local
+data/
+docs/screenshots/*
+.git
+.gitignore
+.claude/

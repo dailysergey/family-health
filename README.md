@@ -76,24 +76,29 @@ The turn ends with `run_finished`, which unlocks the input.
 
 ## Quick start
 
-Requirements: Node.js 20+, tmux, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) authenticated (`claude` in `$PATH`, OAuth done), pm2 optional for production.
+Requirements: Docker + `docker compose` plugin, and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) authenticated on the host once (`claude` — its `~/.claude` OAuth is mounted into the container).
 
 ```bash
-git clone git@github.com:dailysergey/family-health.git && cd family-health
-
-cp web/.env.example web/.env.local
-# edit: HEALTH_DATA_DIR, HEALTH_PIN, HEALTH_INGEST_SECRET
-(cd web && npm install && npm run build)
-(cd mcp && npm install)
-
-cp -r data.example data
-# make HEALTH_INGEST_SECRET in web/.env.local match data/.mcp.json
-
-bash runtime/start-claude.sh       # tmux new-session -d -s health "claude ..."
-cd web && PORT=3100 npm start      # or: pm2 start ecosystem.config.js
+git clone https://github.com/dailysergey/family-health.git && cd family-health
+bash deploy/deploy.sh
 ```
 
-Open <http://localhost:3100>, log in with the PIN from `web/.env.local`.
+The script generates `deploy/.env` with a random ingest secret, prompts for a PIN, seeds `data/` from `data.example/` if empty, builds the image and starts the container. Full details in [`deploy/README.md`](deploy/README.md).
+
+Open <http://localhost:3100>, log in with the PIN.
+
+### Bare-metal / dev
+
+Prefer running without Docker (e.g. for local hacking on `web/`)? Node.js 20+, tmux, Claude Code CLI on the host:
+
+```bash
+cp web/.env.example web/.env.local          # edit HEALTH_PIN, HEALTH_INGEST_SECRET
+(cd web && npm install && npm run build)
+(cd mcp && npm install)
+cp -r data.example data
+bash runtime/start-claude.sh                # tmux new-session -d -s health "claude ..."
+cd web && PORT=3100 npm start               # or: pm2 start ecosystem.config.js
+```
 
 ### Environment variables (`web/.env.local`)
 

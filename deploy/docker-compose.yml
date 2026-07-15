@@ -1,0 +1,32 @@
+services:
+  family-health:
+    container_name: family-health
+    image: family-health:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${HEALTH_PORT:-3100}:3100"
+    environment:
+      HEALTH_PIN: "${HEALTH_PIN:?set HEALTH_PIN in .env}"
+      HEALTH_INGEST_SECRET: "${HEALTH_INGEST_SECRET:?set HEALTH_INGEST_SECRET in .env}"
+      HEALTH_DATA_DIR: /data
+      HEALTH_TMUX_SESSION: health
+      HEALTH_START_SCRIPT: /app/runtime/start-claude.sh
+      NODE_ENV: production
+      TZ: "${TZ:-Europe/Moscow}"
+    volumes:
+      # Family data (labs, diagnoses, PDFs, chat) — stays on host.
+      - ${HEALTH_DATA_DIR:-./data}:/data
+
+      # Claude Code CLI credentials from the host. Required — without them the
+      # in-container `claude` has nothing to authenticate with.
+      - ${CLAUDE_DIR:-~/.claude}:/root/.claude
+      - ${CLAUDE_JSON:-~/.claude.json}:/root/.claude.json
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3100/api/members"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

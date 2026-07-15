@@ -25,12 +25,16 @@ next-env.d.ts
 web/.env
 web/.env.*
 !web/.env.example
+deploy/.env
+deploy/.env.*
+!deploy/.env.example
 
 # --- personal / runtime data (family medical records) ------------------------
 # The `data/` directory holds actual family medical data (labs, diagnoses,
 # scans, chat transcripts). NEVER commit this. Use `data.example/` as the
 # template and copy it to `data/` on first run.
 data/
+deploy/data/
 !data.example/
 
 # --- Claude Code local state -------------------------------------------------

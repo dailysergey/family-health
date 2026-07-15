@@ -76,24 +76,29 @@ data.example/       скелет для копирования в data/ при �
 
 ## Быстрый старт
 
-Требования: Node.js 20+, tmux, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) с пройденным OAuth (`claude` в `$PATH`), pm2 опционально для prod.
+Требования: Docker + plugin `docker compose`, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) с пройденным OAuth на хосте (`claude` один раз — его `~/.claude` монтируется в контейнер).
 
 ```bash
-git clone git@github.com:dailysergey/family-health.git && cd family-health
-
-cp web/.env.example web/.env.local
-# отредактируй: HEALTH_DATA_DIR, HEALTH_PIN, HEALTH_INGEST_SECRET
-(cd web && npm install && npm run build)
-(cd mcp && npm install)
-
-cp -r data.example data
-# HEALTH_INGEST_SECRET в web/.env.local должен совпадать с data/.mcp.json
-
-bash runtime/start-claude.sh       # tmux new-session -d -s health "claude ..."
-cd web && PORT=3100 npm start      # или: pm2 start ecosystem.config.js
+git clone https://github.com/dailysergey/family-health.git && cd family-health
+bash deploy/deploy.sh
 ```
 
-Открой <http://localhost:3100>, введи PIN из `web/.env.local`.
+Скрипт создаёт `deploy/.env` со случайным `HEALTH_INGEST_SECRET`, спрашивает PIN, наполняет `data/` из `data.example/` если пусто, собирает образ и поднимает контейнер. Подробности — в [`deploy/README.md`](deploy/README.md).
+
+Открой <http://localhost:3100>, введи PIN.
+
+### Без Docker (для локальной разработки)
+
+Если хочешь запускать напрямую, потребуются Node.js 20+, tmux и Claude Code CLI на хосте:
+
+```bash
+cp web/.env.example web/.env.local          # правь HEALTH_PIN, HEALTH_INGEST_SECRET
+(cd web && npm install && npm run build)
+(cd mcp && npm install)
+cp -r data.example data
+bash runtime/start-claude.sh                # tmux new-session -d -s health "claude ..."
+cd web && PORT=3100 npm start               # или: pm2 start ecosystem.config.js
+```
 
 ### Переменные окружения (`web/.env.local`)
 
