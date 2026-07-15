@@ -8,6 +8,16 @@ A self-hosted family health dashboard driven by [Claude Code](https://docs.anthr
 
 Apple Health–inspired UI (dark/light, Russian by default). Drop a PDF into the browser and the agent files it, extracts labs, updates diagnoses, and renders a report widget in the chat.
 
+## Why
+
+All my family's labs, discharges and doctor notes used to live scattered across email, doctor chats and phone screenshots. Finding a specific result was a 30-minute quest; comparing TSH over three years was effectively impossible.
+
+Now everything is one folder per person on my server. I drop a new PDF into `_inbox/` — the agent parses it, extracts each lab value with reference range and status, updates diagnoses, and moves the file into the right category. The dashboard shows active diagnoses, labs grouped by canonical panels (CBC, biochem, lipids, hormones, vitamins), metric trends and documents.
+
+**The best part is bringing it to a doctor's appointment.** I open the dashboard for whichever kid is being seen — all their active diagnoses, latest labs by panel and trends over the past year are visible at a glance. No more "there was something about hemoglobin last summer, wasn't there?", no more digging through email for the original lab PDF. If the doctor wants the source — one tap opens the original file from the folder.
+
+Everything stays local. No SaaS platform gets our medical records. The only outbound traffic is Claude Code's normal LLM calls under a subscription I already pay for.
+
 ## Features
 
 - **Family view** — one card per person on the left; add new members from the UI. Each member has their own folder with `labs.json`, `diagnoses.json`, `metrics.json`, `documents.json` and category subfolders (`Анализы`, `Заключения`, `Выписки`, `Снимки`, `_inbox`).
