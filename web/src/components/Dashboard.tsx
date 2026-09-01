@@ -5,6 +5,9 @@ import { DiagnosisCard } from "@/components/widgets/DiagnosisCard";
 import { TrendChartCard } from "@/components/widgets/TrendChartCard";
 import { MetricRing } from "@/components/widgets/MetricRing";
 import { WearablesCard } from "@/components/widgets/WearablesCard";
+import { WhoopDashboard } from "@/components/widgets/WhoopDashboard";
+import { OuraContributors } from "@/components/widgets/OuraContributors";
+import { FitnessSection } from "@/components/FitnessSection";
 import { DocumentList } from "@/components/DocumentList";
 import { UploadDropzone } from "@/components/UploadDropzone";
 
@@ -57,8 +60,26 @@ export function Dashboard({ bundle, conversationId }: { bundle: MemberBundle; co
         </div>
 
         {member.wearables?.enabled && (
+          <Section title="Сегодня">
+            <WhoopDashboard memberId={member.id} />
+          </Section>
+        )}
+
+        {member.wearables?.enabled && (
+          <Section title="Готовность">
+            <OuraContributors memberId={member.id} />
+          </Section>
+        )}
+
+        {member.wearables?.enabled && (
           <Section title="Носимое устройство">
             <WearablesCard memberId={member.id} />
+          </Section>
+        )}
+
+        {member.wearables?.enabled && (
+          <Section title="Фитнес">
+            <FitnessSection memberId={member.id} />
           </Section>
         )}
 

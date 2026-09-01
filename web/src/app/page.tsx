@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
-import { Sidebar } from "@/components/Sidebar";
-import { Dashboard } from "@/components/Dashboard";
-import { ChatPanel } from "@/components/ChatPanel";
 import { getChatHistory, getMemberBundle, listMembers } from "@/lib/store";
+import { MobileShell } from "@/components/MobileShell";
 
 export const dynamic = "force-dynamic";
 
@@ -29,17 +27,11 @@ export default async function Page({
   const chatHistory = await getChatHistory(activeId);
 
   return (
-    <div className="flex flex-col md:flex-row md:h-screen md:overflow-hidden">
-      <Sidebar members={members} activeId={activeId} />
-      <Dashboard bundle={bundle} conversationId={conversationId} />
-      {/* key remounts the panel per member so it seeds from that member's transcript */}
-      <ChatPanel
-        key={conversationId}
-        conversationId={conversationId}
-        memberId={activeId}
-        memberName={bundle.member.name}
-        initialItems={chatHistory}
-      />
-    </div>
+    <MobileShell
+      members={members}
+      bundle={bundle}
+      conversationId={conversationId}
+      chatHistory={chatHistory}
+    />
   );
 }

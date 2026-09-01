@@ -2,11 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Moon, Sun, UserPlus } from "lucide-react";
+import { Moon, Sun, UserPlus, Smartphone } from "lucide-react";
 import { useTheme } from "next-themes";
 import type { Accent, FamilyMember } from "@/lib/types";
 import { accentVar, ageLabel, initials, tint } from "@/lib/ui";
 import { AddMemberDialog } from "./AddMemberDialog";
+import { PushPrompt } from "./PushPrompt";
 
 function Avatar({ member, size = 40 }: { member: FamilyMember; size?: number }) {
   const color = accentVar(member.accent);
@@ -90,7 +91,16 @@ export function Sidebar({ members, activeId }: { members: FamilyMember[]; active
         </button>
       </nav>
 
-      <div className="p-3 border-t border-separator">
+      <div className="p-3 border-t border-separator space-y-1">
+        <PushPrompt memberId={activeId} />
+        <button
+          type="button"
+          onClick={() => router.push("/settings/wearables")}
+          className="w-full h-11 flex items-center justify-center gap-2 rounded-inner text-text-secondary hover:bg-[rgba(127,127,127,0.08)] transition-colors"
+        >
+          <Smartphone size={18} />
+          <span className="text-subheadline">Устройства</span>
+        </button>
         <button
           type="button"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}

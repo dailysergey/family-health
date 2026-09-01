@@ -64,12 +64,14 @@ export async function getDocuments(memberId: string): Promise<DocumentMeta[]> {
 export type WearablesDaily = {
   date: string;
   steps?: number;
+  stepsGoal?: number;
   heartRateAvg?: number;
   heartRateMin?: number;
   heartRateMax?: number;
   activeEnergyKcal?: number;
   activeZoneMinutes?: number;
   sleepMinutes?: number;
+  sleepEfficiency?: number;
   restingHeartRate?: number;
   hrvRmssd?: number;
   spo2?: number;
@@ -79,46 +81,116 @@ export type WearablesDaily = {
 /** Flatten a raw ghealth rollup file into a compact daily summary. */
 function normalizeWearables(raw: unknown, date: string): WearablesDaily {
   const r = raw as Record<string, unknown>;
-  const pickPoint = <T = Record<string, unknown>>(field: string): T | undefined => {
-    const v = r?.[field] as { dataPoints?: T[] } | T[] | undefined;
-    if (!v) return undefined;
-    if (Array.isArray(v)) return v[0];
-    return v.dataPoints?.[0];
-  };
+
   const num = (v: unknown): number | undefined => {
     if (v === undefined || v === null || v === "") return undefined;
     const n = typeof v === "string" ? Number(v) : (v as number);
     return Number.isFinite(n) ? n : undefined;
   };
 
-  const steps = pickPoint<Record<string, unknown>>("steps");
-  const hr = pickPoint<Record<string, unknown>>("heart_rate");
+  // pickPoint: ghealth nested format {dataPoints:[{...}]} or flat array
+  // Returns undefined for plain numbers/strings (handled separately as flat fields)
+  const pickPoint = <T = Record<string, unknown>>(field: string): T | undefined => {
+    const v = r?.[field];
+    if (v === undefined || v === null || typeof v !== "object") return undefined;
+    if (Array.isArray(v)) return v[0] as T;
+    return (v as { dataPoints?: T[] }).dataPoints?.[0];
+  };
+
+  // flat: read oura flat numeric field, fallback to ghealth nested
+  const flat = (
+    flatKey: string,
+    nestedKey: string,
+    ...props: string[]
+  ): number | undefined => {
+    const direct = num(r?.[flatKey]);
+    if (direct != null) return direct;
+    const pt = pickPoint<Record<string, unknown>>(nestedKey);
+    for (const p of props) {
+      const v = num(pt?.[p]);
+      if (v != null) return v;
+    }
+    return undefined;
+  };
+
+  // Steps: oura writes flat number, ghealth writes nested object — check both
+  const stepsFlat = num(r?.steps);  // oura: steps = 7234
+  const stepsNested = pickPoint<Record<string, unknown>>("steps");  // ghealth: steps.dataPoints[0]
+  const stepsVal = stepsFlat ?? num(stepsNested?.countSum) ?? num(stepsNested?.total);
+
+  // stepsGoal: ghealth может писать в steps.goal
+  const stepsObjGoal = typeof r?.steps === "object" && r?.steps !== null && !Array.isArray(r?.steps)
+    ? num((r.steps as Record<string, unknown>).goal)
+    : undefined;
+  const stepsGoal = stepsObjGoal ?? num(stepsNested?.goal);
+
+  // ghealth nested fields
+  const hr  = pickPoint<Record<string, unknown>>("heart_rate");
   const aek = pickPoint<Record<string, unknown>>("active_energy_kcal");
   const azm = pickPoint<Record<string, unknown>>("active_zone_minutes");
   const rhr = pickPoint<Record<string, unknown>>("resting_heart_rate");
   const hrv = pickPoint<Record<string, unknown>>("hrv");
-  const spo2 = pickPoint<Record<string, unknown>>("spo2");
+  const spo2pt = pickPoint<Record<string, unknown>>("spo2");
   const vo2 = pickPoint<Record<string, unknown>>("vo2max");
   const sleepList = (r?.sleep as { dataPoints?: Record<string, unknown>[] })?.dataPoints ?? [];
 
-  const sleepMinutes = sleepList.reduce<number | undefined>((acc, s) => {
-    const m = num(s?.minutesAsleep) ?? num(s?.totalMinutesAsleep);
-    return m === undefined ? acc : (acc ?? 0) + m;
-  }, undefined);
+  const sleepMinutes = (() => {
+    // oura flat (sleepMinutes) takes priority
+    const ouraFlat = num(r?.sleepMinutes);
+    if (ouraFlat != null) return ouraFlat;
+    return sleepList.reduce<number | undefined>((acc, s) => {
+      const m = num(s?.minutesAsleep) ?? num(s?.totalMinutesAsleep);
+      return m === undefined ? acc : (acc ?? 0) + m;
+    }, undefined);
+  })();
+
+  const sleepEfficiency = (() => {
+    const ouraFlat = num(r?.sleepEfficiency);
+    if (ouraFlat != null) return ouraFlat;
+    if (sleepList.length === 0) return undefined;
+    const s = sleepList[0];
+    const explicit = num(s?.efficiency);
+    if (explicit != null) return explicit;
+    const asleep = num(s?.minutesAsleep) ?? num(s?.totalMinutesAsleep);
+    const awake  = num(s?.minutesAwake) ?? 0;
+    const total  = num(s?.totalMinutes) ?? (asleep != null ? asleep + awake : undefined);
+    if (asleep != null && total != null && total > 0) {
+      return Math.round((asleep / total) * 100);
+    }
+    return undefined;
+  })();
 
   return {
     date,
-    steps: num(steps?.countSum) ?? num(steps?.total),
-    heartRateAvg: num(hr?.beatsPerMinuteAvg),
-    heartRateMin: num(hr?.beatsPerMinuteMin),
-    heartRateMax: num(hr?.beatsPerMinuteMax),
-    activeEnergyKcal: num(aek?.kcalSum),
-    activeZoneMinutes: num(azm?.activeZoneMinutesSum) ?? num(azm?.total),
+    steps:            stepsVal,
+    stepsGoal,
+    // heartRate: oura flat keys take priority over ghealth nested
+    heartRateAvg:     num(r?.heartRateAvg)     ?? num(hr?.beatsPerMinuteAvg),
+    heartRateMin:     num(r?.heartRateMin)     ?? num(hr?.beatsPerMinuteMin),
+    heartRateMax:     num(r?.heartRateMax)     ?? num(hr?.beatsPerMinuteMax),
+    // calories: oura flat `activeEnergyKcal`, ghealth `active_energy_kcal.dataPoints[0].kcalSum`
+    activeEnergyKcal: flat("activeEnergyKcal", "active_energy_kcal", "kcalSum"),
+    // AZM: oura flat, ghealth three-zone breakdown
+    activeZoneMinutes: (() => {
+      const ouraFlat = num(r?.activeZoneMinutes);
+      if (ouraFlat != null) return ouraFlat;
+      const direct = num(azm?.activeZoneMinutesSum) ?? num(azm?.total);
+      if (direct != null) return direct;
+      const fatBurn = num(azm?.sumInFatBurnHeartZone) ?? 0;
+      const cardio  = num(azm?.sumInCardioHeartZone)  ?? 0;
+      const peak    = num(azm?.sumInPeakHeartZone)    ?? 0;
+      const sum = fatBurn + cardio + peak;
+      return sum > 0 ? sum : undefined;
+    })(),
     sleepMinutes,
-    restingHeartRate: num(rhr?.beatsPerMinute),
-    hrvRmssd: num(hrv?.rmssd),
-    spo2: num(spo2?.percentage),
-    vo2max: num(vo2?.vo2Max) ?? num(vo2?.value),
+    sleepEfficiency,
+    // rhr: oura flat, ghealth nested beatsPerMinute
+    restingHeartRate: flat("restingHeartRate", "resting_heart_rate", "beatsPerMinute"),
+    // hrv: oura flat `hrvRmssd`, ghealth `hrv.dataPoints[0].averageHeartRateVariabilityMilliseconds`
+    hrvRmssd:         num(r?.hrvRmssd) ?? num(hrv?.averageHeartRateVariabilityMilliseconds) ?? num(hrv?.rmssd),
+    // spo2: oura flat, ghealth nested averagePercentage
+    spo2:             flat("spo2", "spo2", "averagePercentage", "percentage"),
+    vo2max:           num(vo2?.vo2Max) ?? num(vo2?.value),
   };
 }
 
@@ -146,6 +218,15 @@ export async function getWearables(memberId: string, days = 30): Promise<Wearabl
 }
 
 const CATEGORY_FOLDERS = ["Анализы", "Заключения", "Выписки", "Снимки", "_inbox"];
+
+/** Update fields of an existing family member in family.json. */
+export async function updateMember(memberId: string, updates: Partial<FamilyMember>): Promise<void> {
+  const members = await listMembers();
+  const idx = members.findIndex((m) => m.id === memberId);
+  if (idx < 0) throw new Error(`Member ${memberId} not found`);
+  members[idx] = { ...members[idx], ...updates };
+  await writeJSON(path.join(DATA_DIR, "family.json"), members);
+}
 
 /** Create a new family member: append to family.json and scaffold their folder. */
 export async function addMember(input: Omit<FamilyMember, "id">): Promise<FamilyMember> {

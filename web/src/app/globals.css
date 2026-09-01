@@ -99,7 +99,17 @@ body {
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* iOS safe area support */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
+
+/* Safe area viewport meta support */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  body { padding-bottom: 0; }
+}
+
 
 .tabular {
   font-variant-numeric: tabular-nums;
@@ -162,6 +172,15 @@ body {
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@keyframes ring-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0px var(--ring-pulse-color, currentColor)); }
+  50%       { filter: drop-shadow(0 0 6px var(--ring-pulse-color, currentColor)); }
+}
+
+.ring-pulse {
+  animation: ring-pulse 2.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

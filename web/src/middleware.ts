@@ -20,5 +20,5 @@ export async function middleware(req: NextRequest) {
 // Protect everything except the login page, the auth endpoint, the MCP ingest
 // endpoint (guarded by its own secret), and static assets.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|login|api/auth|api/ingest).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon\\.svg|apple-touch-icon\\.png|manifest\\.json|sw\\.js|login|api/auth|api/ingest|api/oura).*)"],
 };
