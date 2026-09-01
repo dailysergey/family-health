@@ -8,6 +8,7 @@ import {
   ArrowUp,
   CornerDownRight,
   Lightbulb,
+  Loader2,
   MoreHorizontal,
   Paperclip,
   Sparkles,
@@ -38,6 +39,10 @@ function AssistantMarkdown({ text }: { text: string }) {
 }
 
 // ── Single message bubble ────────────────────────────────────────────────────
+// User: тёплый градиент вместо сплошного brand-цвета — так bubble сидит на
+// беже, а не «стреляет» цветом (bender-паттерн). Assistant: аватар с
+// accent-градиентом и мягким glow, сам пузырь — panel без тени, только тонкий
+// border, чтобы markdown-типографика читалась естественно.
 function MessageBubble({
   role,
   text,
@@ -51,8 +56,11 @@ function MessageBubble({
     return (
       <div className="flex justify-end" style={{ animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)" }}>
         <div
-          className="max-w-[80%] text-white text-body rounded-[18px] rounded-br-[4px] px-3.5 py-2.5 whitespace-pre-wrap break-words"
-          style={{ background: "var(--color-brand)" }}
+          className="max-w-[80%] text-text-primary text-body rounded-[18px] rounded-br-[4px] px-3.5 py-2.5 whitespace-pre-wrap break-words shadow-soft"
+          style={{
+            background: "var(--user-bg)",
+            border: "1px solid var(--color-separator)",
+          }}
         >
           {text}
         </div>
@@ -64,15 +72,18 @@ function MessageBubble({
     <div className="flex gap-2 items-start" style={{ animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)" }}>
       <span
         className="w-7 h-7 rounded-full inline-flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: "var(--color-brand)" }}
+        style={{
+          background: "var(--accent-grad)",
+          boxShadow: "var(--shadow-accent)",
+        }}
       >
         <Sparkles size={14} color="#fff" />
       </span>
       <div className="min-w-0 flex-1">
         <div
-          className="rounded-[18px] rounded-bl-[4px] px-4 py-3 shadow-card"
+          className="rounded-[18px] rounded-bl-[4px] px-4 py-3"
           style={{
-            background: "var(--color-bg-secondary)",
+            background: "var(--panel)",
             border: "1px solid var(--color-separator)",
           }}
         >
@@ -88,8 +99,8 @@ function MessageBubble({
                 style={{
                   width: 2,
                   height: "1em",
-                  background: "var(--color-brand)",
-                  opacity: 0.8,
+                  background: "var(--accent)",
+                  opacity: 0.85,
                   animation: "caretBlink 0.9s ease infinite",
                 }}
               />
@@ -200,6 +211,7 @@ export function ChatPanel({
   // ── Input ───────────────────────────────────────────────────────────────
   const [input, setInput] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -238,13 +250,19 @@ export function ChatPanel({
   };
 
   const upload = async (files: FileList | null) => {
-    if (!files?.length) return;
-    for (const file of Array.from(files)) {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("memberId", memberId);
-      fd.append("conversationId", conversationId);
-      await fetch("/api/upload", { method: "POST", body: fd });
+    if (!files?.length || uploading) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("memberId", memberId);
+        fd.append("conversationId", conversationId);
+        await fetch("/api/upload", { method: "POST", body: fd });
+      }
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -266,9 +284,10 @@ export function ChatPanel({
           to   { opacity: 1; }
         }
         @keyframes caretBlink {
-          0%, 50% { opacity: 0.8; }
+          0%, 50% { opacity: 0.85; }
           51%, 100% { opacity: 0; }
         }
+        @keyframes chatAttachSpin { to { transform: rotate(360deg); } }
       `}</style>
 
       <section
@@ -282,23 +301,26 @@ export function ChatPanel({
         {!hideHeader && (
           <header
             className="h-16 shrink-0 border-b border-separator px-4 flex items-center gap-3"
-            style={{ background: "var(--color-bg-secondary)" }}
+            style={{ background: "var(--panel)" }}
           >
             <span
               className="w-8 h-8 rounded-full inline-flex items-center justify-center shrink-0"
-              style={{ background: "var(--color-brand)" }}
+              style={{
+                background: "var(--accent-grad)",
+                boxShadow: "var(--shadow-accent)",
+              }}
             >
               <Sparkles size={16} color="#fff" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-headline text-text-primary">Анализ с Claude</div>
+              <div className="text-headline text-text-primary">Ассистент</div>
               <div className="text-subheadline text-text-tertiary truncate">{memberName}</div>
             </div>
             <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="h-9 w-9 inline-flex items-center justify-center rounded-full text-text-tertiary hover:text-text-primary hover:bg-fill-quaternary transition-colors"
+                className="h-9 w-9 inline-flex items-center justify-center rounded-full text-text-tertiary hover:text-accent hover:bg-accent-soft transition-colors"
                 title="Действия с диалогом"
               >
                 <MoreHorizontal size={20} />
@@ -312,11 +334,17 @@ export function ChatPanel({
                     className="fixed inset-0 z-10 cursor-default"
                     onClick={() => setMenuOpen(false)}
                   />
-                  <div className="absolute right-0 top-11 z-20 w-60 rounded-card shadow-modal border border-separator p-1 animate-scale-in origin-top-right" style={{ background: "var(--color-bg-elevated)" }}>
+                  <div
+                    className="absolute right-0 top-11 z-20 w-60 rounded-card border border-separator p-1 animate-scale-in origin-top-right"
+                    style={{
+                      background: "var(--panel)",
+                      boxShadow: "var(--shadow-modal)",
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={compactContext}
-                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-inner text-left hover:bg-fill-quaternary transition-colors"
+                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-inner text-left hover:bg-accent-soft transition-colors"
                     >
                       <Archive size={18} className="text-text-secondary mt-0.5 shrink-0" />
                       <span className="min-w-0">
@@ -328,8 +356,8 @@ export function ChatPanel({
                       type="button"
                       onClick={clearHistory}
                       className="w-full flex items-start gap-3 px-3 py-2.5 rounded-inner text-left transition-colors"
-                      style={{ color: "var(--color-status-high)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,59,48,0.08)")}
+                      style={{ color: "var(--danger)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--danger-soft)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
                       <Trash2 size={18} className="mt-0.5 shrink-0" />
@@ -349,8 +377,16 @@ export function ChatPanel({
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {isEmpty ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <Sparkles size={40} strokeWidth={1} className="text-text-quaternary" />
-              <p className="text-callout text-text-tertiary mt-3">
+              <span
+                className="w-14 h-14 rounded-full inline-flex items-center justify-center"
+                style={{
+                  background: "var(--accent-grad)",
+                  boxShadow: "var(--shadow-accent)",
+                }}
+              >
+                <Sparkles size={22} color="#fff" strokeWidth={1.8} />
+              </span>
+              <p className="text-callout text-text-tertiary mt-4">
                 Задайте вопрос об анализах {memberName.split(" ")[0]} или загрузите документ
               </p>
               <div className="flex flex-col gap-2 mt-5 w-full">
@@ -359,8 +395,11 @@ export function ChatPanel({
                     key={s}
                     type="button"
                     onClick={() => void sendMessage(s)}
-                    className="text-subheadline text-text-secondary bg-bg-secondary rounded-inner px-3 py-2 shadow-card hover:-translate-y-0.5 transition-transform text-left"
-                    style={{ border: "1px solid var(--color-separator)" }}
+                    className="text-subheadline text-text-secondary rounded-pill px-4 py-2 shadow-soft hover:border-accent-line hover:text-accent-ink hover:bg-accent-soft transition-all text-left"
+                    style={{
+                      border: "1px solid var(--color-separator)",
+                      background: "var(--panel)",
+                    }}
                   >
                     {s}
                   </button>
@@ -412,7 +451,7 @@ export function ChatPanel({
         {/* ── Input area ── */}
         <div
           className="shrink-0 border-t border-separator px-3 py-3"
-          style={{ background: "var(--color-bg-secondary)" }}
+          style={{ background: "var(--panel)" }}
         >
           <input
             ref={fileRef}
@@ -430,7 +469,7 @@ export function ChatPanel({
             }}
             onFocus={(e) => {
               if (e.currentTarget.contains(e.target))
-                e.currentTarget.style.borderColor = "var(--color-brand)";
+                e.currentTarget.style.borderColor = "var(--accent-line)";
             }}
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node))
@@ -441,10 +480,15 @@ export function ChatPanel({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full text-text-tertiary hover:text-text-primary transition-colors"
+              disabled={uploading || running}
+              className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full text-text-tertiary hover:text-accent hover:bg-accent-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-tertiary"
               title="Загрузить документ"
             >
-              <Paperclip size={18} />
+              {uploading ? (
+                <Loader2 size={18} style={{ animation: "chatAttachSpin 0.8s linear infinite" }} />
+              ) : (
+                <Paperclip size={18} />
+              )}
             </button>
 
             {/* Textarea */}
@@ -464,15 +508,16 @@ export function ChatPanel({
             {/* Mic */}
             <MicButton onTranscription={onTranscription} />
 
-            {/* Send */}
+            {/* Send — accent-grad с glow, как в bender */}
             <button
               type="button"
               onClick={send}
               disabled={!input.trim() || running}
-              className="h-9 w-9 shrink-0 rounded-full inline-flex items-center justify-center transition-all duration-150 mb-0.5"
+              className="h-9 w-9 shrink-0 rounded-full inline-flex items-center justify-center transition-all duration-150 mb-0.5 disabled:opacity-40 disabled:shadow-none"
               style={{
-                background: input.trim() && !running ? "var(--color-brand)" : "var(--color-fill-quaternary)",
+                background: input.trim() && !running ? "var(--accent-grad)" : "var(--color-fill-quaternary)",
                 color: input.trim() && !running ? "#fff" : "var(--color-text-tertiary)",
+                boxShadow: input.trim() && !running ? "var(--shadow-accent)" : "none",
               }}
             >
               <ArrowUp size={18} />
