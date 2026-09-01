@@ -49,6 +49,17 @@ const config: Config = {
           "on-accent": "var(--color-text-on-accent)",
         },
         brand: "var(--color-brand)",
+        // Bender-акцент (терракота) — доступен как Tailwind-класс для новой
+        // chat-панели. Значения читаются из CSS-переменных globals.css.
+        accent: {
+          DEFAULT: "var(--accent)",
+          ink: "var(--accent-ink)",
+          deep: "var(--accent-deep)",
+          soft: "var(--accent-soft)",
+          line: "var(--accent-line)",
+        },
+        panel: "var(--panel)",
+        surface: "var(--surface)",
         activity: "var(--color-activity)",
         heart: "var(--color-heart)",
         mindfulness: "var(--color-mindfulness)",
@@ -71,11 +82,19 @@ const config: Config = {
         card: "var(--radius-card)",
         inner: "var(--radius-inner)",
         chip: "var(--radius-chip)",
+        pill: "var(--r-pill)",
       },
       boxShadow: {
         card: "var(--shadow-card)",
         "card-hover": "var(--shadow-card-hover)",
         modal: "var(--shadow-modal)",
+        accent: "var(--shadow-accent)",
+        soft: "var(--shadow-soft)",
+      },
+      backgroundImage: {
+        "accent-grad": "var(--accent-grad)",
+        "card-grad": "var(--card-grad)",
+        "user-grad": "var(--user-bg)",
       },
       spacing: {
         "4.5": "1.125rem",
