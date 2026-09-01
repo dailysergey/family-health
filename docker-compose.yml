@@ -1,0 +1,35 @@
+# HEALTH_TAG выбирает, откуда берётся образ: `local` — сборка из исходников
+# (`up -d --build`), любой другой тег — готовый образ из GHCR (`pull` + `up -d --no-build`).
+# Переключает и то и другое ./health update, руками лезть сюда не нужно.
+services:
+  family-health:
+    image: ghcr.io/dailysergey/family-health:${HEALTH_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: family-health
+    restart: unless-stopped
+    ports:
+      - "${HEALTH_PORT:-3100}:3100"
+    environment:
+      HEALTH_PIN: "${HEALTH_PIN:?set HEALTH_PIN in .env}"
+      HEALTH_INGEST_SECRET: "${HEALTH_INGEST_SECRET:?set HEALTH_INGEST_SECRET in .env}"
+      HEALTH_DATA_DIR: /data
+      HEALTH_TMUX_SESSION: "${HEALTH_TMUX_SESSION:-health}"
+      HEALTH_START_SCRIPT: /app/runtime/start-claude.sh
+      NODE_ENV: production
+      TZ: "${TZ:-Europe/Moscow}"
+    volumes:
+      # Данные семьи (labs, диагнозы, PDF, чат) — остаются на хосте.
+      - ${HEALTH_DATA_DIR:-./data}:/data
+      # Креды Claude Code CLI с хоста. Без них in-container `claude` нечем авторизоваться.
+      - ${CLAUDE_DIR:-~/.claude}:/root/.claude
+      - ${CLAUDE_JSON:-~/.claude.json}:/root/.claude.json
+      # ghealth (Google Health CLI) — опционально, для синхронизации wearables.
+      - ${GHEALTH_CONFIG_DIR:-~/.config/ghealth}:/root/.config/ghealth
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3100/api/members"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

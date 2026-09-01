@@ -1,9 +1,16 @@
-**/node_modules
-**/.next
-**/.env
-**/.env.local
-data/
-docs/screenshots/*
+# Контекст корневой сборки: не тащить данные и мусор в docker build
 .git
 .gitignore
+data
+docs/screenshots
+install.sh
+health
+scripts
+**/node_modules
+**/.next
+**/dist
+*.log
+.env
+.env.*
 .claude/
+**/.claude/

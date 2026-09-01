@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Управление стендом family-health: обновление, проверка, логи.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+source ./scripts/common.sh
+env_load .env
+
+STAMP=data/.last_deploy   # сюда пишем коммит перед обновлением — для отката
+
+usage() {
+  cat <<'USAGE'
+Использование: ./health <команда>
+
+  doctor            проверить стенд: контейнер, авторизация, ручки, место на диске
+  update [--check]  обновить: git pull, свежий образ, рестарт (--check — только посмотреть)
+  rollback          вернуться на версию, что была до последнего update
+  token             выпустить новый долгоживущий токен Claude и записать в .env
+  logs [сервис]     логи (по умолчанию family-health, Ctrl-C — выход)
+  up | down | restart
+  version
+USAGE
+}
+
+cmd_version() {
+  local sha; sha=$(git rev-parse --short HEAD 2>/dev/null || echo "не git")
+  say "версия:  $sha ($(git log -1 --format=%cd --date=short 2>/dev/null || echo '?'))"
+  say "образ:   ${HEALTH_TAG:-local}$([ "${HEALTH_TAG:-local}" = local ] && echo ' (сборка из исходников)' || echo ' (готовый из GHCR)')"
+  say "порт:    ${HEALTH_PORT:-3100}"
+}
+
+behind() {  # сколько коммитов мы отстаём от origin/main
+  git fetch -q origin 2>/dev/null || return 1
+  git rev-list --count HEAD..origin/main 2>/dev/null || return 1
+}
+
+cmd_doctor() {
+  title "Проверка стенда"
+  local fails=0
+
+  have docker && docker info >/dev/null 2>&1 && ok "docker работает" || { bad "docker недоступен"; return 1; }
+
+  local running
+  running=$(dc ps --services --filter status=running 2>/dev/null || true)
+  if printf '%s\n' "$running" | grep -qx "family-health"; then ok "контейнер family-health"
+  else bad "контейнер family-health не запущен"; fails=$((fails + 1)); fi
+
+  if backend_health; then ok "приложение отвечает"; else bad "приложение не отвечает (./health logs)"; fails=$((fails + 1)); fi
+
+  if have curl; then
+    local port="${HEALTH_PORT:-3100}"
+    if curl -fsS -m 5 -o /dev/null "http://127.0.0.1:$port/"; then ok "веб-интерфейс на порту $port"
+    else bad "веб-интерфейс не отвечает на порту $port"; fails=$((fails + 1)); fi
+  else
+    dim "веб-интерфейс: нечем проверить (нет curl)"
+  fi
+
+  # tmux-сессия с claude REPL — без неё чат не отвечает
+  if dc exec -T family-health tmux has-session -t "${HEALTH_TMUX_SESSION:-health}" 2>/dev/null; then
+    ok "tmux-сессия ${HEALTH_TMUX_SESSION:-health} на месте"
+  else
+    bad "tmux-сессии ${HEALTH_TMUX_SESSION:-health} нет — чат не отвечает"; fails=$((fails + 1))
+  fi
+
+  if check_auth; then
+    ok "агент авторизован в Claude"
+  else
+    bad "агент не авторизован — $(auth_hint)"; fails=$((fails + 1))
+  fi
+
+  local free; free=$(df -h . | awk 'NR==2 {print $4}')
+  say
+  dim "свободно на диске: $free · время в контейнере: $(dc exec -T family-health date '+%F %T %Z' 2>/dev/null || echo '?')"
+  cmd_version | while IFS= read -r l; do dim "$l"; done
+  local n; n=$(behind || echo "")
+  [ -n "$n" ] && [ "$n" != 0 ] && say && warn "вышло обновление: $n коммит(ов). Обновиться: ./health update"
+
+  say
+  [ "$fails" = 0 ] && ok "всё на месте" || bad "проблем: $fails"
+  return 0
+}
+
+cmd_update() {
+  if [ "${1:-}" = "--check" ]; then
+    local n; n=$(behind) || die "не дотянуться до origin — проверьте сеть"
+    [ "$n" = 0 ] && ok "уже последняя версия" || {
+      warn "доступно обновление: $n коммит(ов)"
+      git log --oneline HEAD..origin/main | head -10 | while IFS= read -r l; do dim "$l"; done
+    }
+    return 0
+  fi
+
+  title "Обновление"
+  [ -n "$(git status --porcelain 2>/dev/null)" ] && warn "в рабочем дереве есть правки — они сохранятся, но обновление может не влиться"
+  mkdir -p data && git rev-parse HEAD > "$STAMP" 2>/dev/null || true
+
+  git pull --ff-only || die "не влилось. Разберитесь с git и повторите"
+
+  if [ "${HEALTH_TAG:-local}" = local ]; then
+    dc up -d --build
+  else
+    dc pull --quiet && dc up -d --no-build
+  fi
+  ok "образ обновлён, контейнер перезапущен"
+
+  wait_healthy 120 && ok "приложение отвечает" || warn "приложение молчит — ./health logs"
+  say
+  cmd_version
+}
+
+cmd_rollback() {
+  [ -f "$STAMP" ] || die "не с чего откатываться: $STAMP пуст"
+  local sha; sha=$(cat "$STAMP")
+  title "Откат на $sha"
+  git checkout -q "$sha" || die "git не отпускает — сначала разберитесь с правками"
+  dc up -d --build      # старому коду готового образа может и не быть — собираем
+  wait_healthy 120 && ok "откатились" || warn "приложение молчит — ./health logs"
+  dim "вернуться к свежей версии: git checkout main && ./health update"
+}
+
+cmd_token() {
+  title "Новый токен Claude"
+  say "Токен живёт год и не зависит от OAuth-сессии — то, что нужно серверу без браузера."
+  if have claude; then claude setup-token || true; else dc run --rm family-health claude setup-token || true; fi
+  CLAUDE_CODE_OAUTH_TOKEN=$(ask_secret "Вставьте выданный токен" "")
+  [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || die "пусто — ничего не меняю"
+  env_save .env $ENV_KEYS
+  dc up -d family-health >/dev/null
+  wait_healthy 60 >/dev/null || true
+  check_auth && ok "агент авторизован" || bad "всё ещё не авторизован — проверьте токен"
+}
+
+case "${1:-}" in
+  doctor)   shift; cmd_doctor "$@" ;;
+  update)   shift; cmd_update "$@" ;;
+  rollback) shift; cmd_rollback "$@" ;;
+  token)    shift; cmd_token "$@" ;;
+  logs)     shift; dc logs -f --tail 200 "${@:-family-health}" ;;
+  up)       dc up -d; ok "поднято" ;;
+  down)     dc down; ok "остановлено" ;;
+  restart)  dc restart; ok "перезапущено" ;;
+  version)  cmd_version ;;
+  ""|help|--help|-h) usage ;;
+  *) usage; die "неизвестная команда: $1" ;;
+esac
