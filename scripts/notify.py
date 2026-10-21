@@ -41,10 +41,10 @@ def load_env():
 ENV = load_env()
 VAPID_PUBLIC  = ENV.get("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE = ENV.get("VAPID_PRIVATE_KEY", "")
-VAPID_SUBJECT = ENV.get("VAPID_SUBJECT", "mailto:you@example.com")
+VAPID_SUBJECT = ENV.get("VAPID_SUBJECT", "mailto:gusevski.dev@gmail.com")
 TG_TOKEN      = ENV.get("TELEGRAM_BOT_TOKEN", "")
-TG_CHAT_ID    = ENV.get("TELEGRAM_CHAT_ID", "")
-SITE_URL      = ENV.get("SITE_URL", "https://health.example.com")
+TG_CHAT_ID    = ENV.get("TELEGRAM_CHAT_ID", "161408126")
+SITE_URL      = "https://health.sguskov.com"
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 def send_telegram(text: str):
@@ -154,12 +154,25 @@ def parse_day(raw: dict) -> dict:
     sleep_list = (raw.get("sleep") or {}).get("dataPoints") or []
     azm = (raw.get("active_zone_minutes") or {}).get("dataPoints") or []
     azm = azm[0] if azm else {}
-    steps_dp = ((raw.get("steps") or {}).get("dataPoints") or [{}])[0]
+    # steps: Oura хранит как int, Google Fit — как dict с dataPoints
+    _steps_raw = raw.get("steps")
+    if isinstance(_steps_raw, dict):
+        steps_dp = (_steps_raw.get("dataPoints") or [{}])[0]
+        _steps_val = num(steps_dp.get("countSum"))
+    else:
+        _steps_val = num(_steps_raw)
 
-    # sleep efficiency — берём одну запись (наибольший totalMinutes), иначе суммируем два источника
-    sleep_eff = None
-    if sleep_list:
-        s = max(sleep_list, key=lambda x: num(x.get("totalMinutes")) or 0)
+    # sleep — приоритет Oura API (sleepMinutes/sleepEfficiency из oura_sync),
+    # fallback на Google Fit dataPoints (source=com.ouraring.oura)
+    oura_sleep_min = num(raw.get("sleepMinutes"))
+    oura_sleep_eff = num(raw.get("sleepEfficiency"))
+
+    sleep_eff = oura_sleep_eff
+    sleep_mins = oura_sleep_min or 0
+
+    if sleep_eff is None and sleep_list:
+        oura = [s for s in sleep_list if "oura" in (s.get("source") or "").lower()]
+        s = oura[0] if oura else max(sleep_list, key=lambda x: num(x.get("totalMinutes")) or 0)
         sleep_eff = num(s.get("efficiency"))
         if sleep_eff is None:
             asleep = num(s.get("minutesAsleep")) or 0
@@ -167,31 +180,36 @@ def parse_day(raw: dict) -> dict:
             total  = num(s.get("totalMinutes")) or (asleep + awake)
             if total > 0:
                 sleep_eff = round(asleep / total * 100)
+        if not sleep_mins:
+            sleep_mins = num(s.get("minutesAsleep")) or 0
 
-    azm_total = (
-        (num(azm.get("activeZoneMinutesSum")) or 0) +
-        (num(azm.get("sumInFatBurnHeartZone")) or 0) +
-        (num(azm.get("sumInCardioHeartZone"))  or 0) +
-        (num(azm.get("sumInPeakHeartZone"))    or 0)
-    ) or None
-    # dedupe (если activeZoneMinutesSum уже включает остальные — нет, это отдельные поля)
-    if num(azm.get("activeZoneMinutesSum")) is not None:
-        azm_total = num(azm.get("activeZoneMinutesSum"))
+    # azm — сначала пробуем сумму-поле, иначе суммируем отдельные зоны
+    azm_fat  = num(azm.get("sumInFatBurnHeartZone")) or 0
+    azm_card = num(azm.get("sumInCardioHeartZone"))  or 0
+    azm_peak = num(azm.get("sumInPeakHeartZone"))    or 0
+    azm_total = num(azm.get("activeZoneMinutesSum"))
+    if azm_total is None:
+        azm_total = (azm_fat + azm_card + azm_peak) or None
+    # детали зон для расшифровки
+    azm_detail = {"fat": int(azm_fat), "card": int(azm_card), "peak": int(azm_peak)}
 
     return {
         "date":              raw.get("date", ""),
-        "rhr":               num(rhr_dp.get("beatsPerMinute")) or num(hr.get("beatsPerMinuteAvg")),
-        "hrv":               num(hrv_dp.get("rmssd")),
+        "rhr":               (num(rhr_dp.get("beatsPerMinute")) or num(hr.get("beatsPerMinuteAvg"))
+                              or num(raw.get("restingHeartRate"))),
+        "hrv":               (num(hrv_dp.get("rmssd")) or num(hrv_dp.get("averageHeartRateVariabilityMilliseconds"))
+                              or num(raw.get("hrvRmssd"))),
         "sleep_efficiency":  sleep_eff,
-        "sleep_minutes":     (lambda s: num(s.get("minutesAsleep")) or 0)(max(sleep_list, key=lambda x: num(x.get("totalMinutes")) or 0)) if sleep_list else 0,
+        "sleep_minutes":     sleep_mins,
         "azm":               azm_total,
-        "steps":             num(steps_dp.get("countSum")),
+        "azm_detail":        azm_detail,
+        "steps":             _steps_val,
     }
 
 # ── режимы ─────────────────────────────────────────────────────────────────────
 def mode_digest():
     """Утренний дайджест: краткая сводка за вчера."""
-    raws = latest_wearables("primary", 2)
+    raws = latest_wearables("sergey", 2)
     if not raws:
         print("[notify] No data for digest")
         return
@@ -212,7 +230,17 @@ def mode_digest():
         lines.append(f"📡 HRV: {int(day['hrv'])} мс")
 
     if day["azm"] is not None:
-        lines.append(f"🏃 Активные зоны: {int(day['azm'])} мин")
+        azm_total = int(day["azm"])
+        det = day.get("azm_detail", {})
+        # Расшифровка по зонам (показываем только ненулевые)
+        zone_parts = []
+        if det.get("fat"):  zone_parts.append(f"жиросжигание {det['fat']}")
+        if det.get("card"): zone_parts.append(f"кардио {det['card']}")
+        if det.get("peak"): zone_parts.append(f"пик {det['peak']}")
+        zone_str = f" ({', '.join(zone_parts)})" if zone_parts else ""
+        # Оценка относительно нормы 22 мин/день (ВОЗ 150 мин/нед)
+        azm_emoji = "✅" if azm_total >= 22 else ("⚠️" if azm_total >= 10 else "")
+        lines.append(f"🏃 Активность в пульсовых зонах: {azm_total} мин{zone_str} {azm_emoji}(норма ≥22/день)")
 
     if day["steps"] is not None:
         emoji = "👟✅" if day["steps"] >= 8000 else "👟"
@@ -227,7 +255,7 @@ def mode_digest():
 
 def mode_anomaly():
     """Проверка аномалий после синхронизации."""
-    raws = latest_wearables("primary", 3)
+    raws = latest_wearables("sergey", 3)
     if not raws:
         return
 
@@ -261,7 +289,7 @@ def mode_anomaly():
 
 def mode_sleep():
     """Уведомление о качестве ночного сна (утром)."""
-    raws = latest_wearables("primary", 1)
+    raws = latest_wearables("sergey", 1)
     if not raws:
         return
 

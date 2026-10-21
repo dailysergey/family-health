@@ -76,6 +76,9 @@ export type WearablesDaily = {
   hrvRmssd?: number;
   spo2?: number;
   vo2max?: number;
+  sleepScore?: number; // Oura sleep score 0–100
+  readinessScore?: number; // Oura readiness 0–100
+  sleepStages?: { deep: number; rem: number; light: number; awake: number }; // minutes
 };
 
 /** Flatten a raw ghealth rollup file into a compact daily summary. */
@@ -138,10 +141,22 @@ function normalizeWearables(raw: unknown, date: string): WearablesDaily {
     // oura flat (sleepMinutes) takes priority
     const ouraFlat = num(r?.sleepMinutes);
     if (ouraFlat != null) return ouraFlat;
-    return sleepList.reduce<number | undefined>((acc, s) => {
-      const m = num(s?.minutesAsleep) ?? num(s?.totalMinutesAsleep);
-      return m === undefined ? acc : (acc ?? 0) + m;
-    }, undefined);
+    // Several sources (Oura + phone) may report the same night: count
+    // time-overlapping sessions once, keeping the longest; naps still add up.
+    const sessions = sleepList
+      .map((s) => ({
+        min: num(s?.minutesAsleep) ?? num(s?.totalMinutesAsleep),
+        start: Date.parse(String(s?.start ?? "")),
+        end: Date.parse(String(s?.end ?? "")),
+      }))
+      .filter((s): s is { min: number; start: number; end: number } => s.min !== undefined)
+      .sort((a, b) => b.min - a.min);
+    const kept: typeof sessions = [];
+    for (const s of sessions) {
+      const overlaps = kept.some((k) => s.start < k.end && k.start < s.end);
+      if (!overlaps) kept.push(s);
+    }
+    return kept.length ? kept.reduce((acc, s) => acc + s.min, 0) : undefined;
   })();
 
   const sleepEfficiency = (() => {
@@ -160,8 +175,42 @@ function normalizeWearables(raw: unknown, date: string): WearablesDaily {
     return undefined;
   })();
 
+  // Stages of the main (longest) staged sleep session
+  const sleepStages = (() => {
+    let best: { deep: number; rem: number; light: number; awake: number } | undefined;
+    let bestTotal = 0;
+    for (const s of sleepList) {
+      const st = s?.stageMinutes as Record<string, unknown> | undefined;
+      if (!st) continue;
+      const stages = {
+        deep: num(st.DEEP) ?? 0,
+        rem: num(st.REM) ?? 0,
+        light: num(st.LIGHT) ?? 0,
+        awake: num(st.AWAKE) ?? 0,
+      };
+      const total = stages.deep + stages.rem + stages.light;
+      if (total > bestTotal) {
+        // Some sources report stage totals that exceed the session; scale
+        // asleep stages to the reported time asleep so the labels add up.
+        const asleep = num(s?.minutesAsleep);
+        const k = asleep && total > asleep ? asleep / total : 1;
+        best = {
+          deep: Math.round(stages.deep * k),
+          rem: Math.round(stages.rem * k),
+          light: Math.round(stages.light * k),
+          awake: num(s?.minutesAwake) ?? stages.awake,
+        };
+        bestTotal = total;
+      }
+    }
+    return best;
+  })();
+
   return {
     date,
+    sleepScore:       num(r?.sleepScore),
+    readinessScore:   num(r?.readinessScore),
+    sleepStages,
     steps:            stepsVal,
     stepsGoal,
     // heartRate: oura flat keys take priority over ghealth nested
@@ -213,6 +262,64 @@ export async function getWearables(memberId: string, days = 30): Promise<Wearabl
       const date = f.replace(/\.json$/, "");
       const raw = await readJSON<unknown>(path.join(dir, f), {});
       return normalizeWearables(raw, date);
+    }),
+  );
+}
+
+export interface MealItem {
+  name: string;
+  grams?: number;
+  kcal: number;
+  protein_g?: number;
+  fat_g?: number;
+  carbs_g?: number;
+  note?: string;
+}
+
+export interface MealEntry {
+  name: string;
+  time?: string;
+  date: string;
+  logged_at: string;
+  items: MealItem[];
+}
+
+export interface MealDay {
+  date: string;
+  meals: MealEntry[];
+  totals: { kcal: number; protein_g: number; fat_g: number; carbs_g: number };
+}
+
+export async function getMeals(memberId: string, days = 7): Promise<MealDay[]> {
+  const dir = path.join(memberDir(memberId), "meals");
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const dayFiles = entries
+    .filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
+    .sort()
+    .slice(-days);
+
+  return Promise.all(
+    dayFiles.map(async (f) => {
+      const date = f.replace(/\.json$/, "");
+      const meals = await readJSON<MealEntry[]>(path.join(dir, f), []);
+      const totals = meals.reduce(
+        (acc, m) => {
+          for (const item of m.items ?? []) {
+            acc.kcal      += item.kcal      ?? 0;
+            acc.protein_g += item.protein_g ?? 0;
+            acc.fat_g     += item.fat_g     ?? 0;
+            acc.carbs_g   += item.carbs_g   ?? 0;
+          }
+          return acc;
+        },
+        { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 },
+      );
+      return { date, meals, totals };
     }),
   );
 }

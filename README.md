@@ -1,126 +1,60 @@
-# family-health
+# Семейный дашборд здоровья
 
-**English** | [Русский](README.ru.md)
+Self-hosted дашборд здоровья по членам семьи с интерактивным ассистентом Claude.
 
-A self-hosted family health dashboard driven by [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as the on-device assistant. One folder per family: labs, diagnoses, discharges, imaging. Data lives in JSON and plain folders on your disk — no cloud, no database. Runs on your Claude Code subscription (OAuth via the CLI), no API keys required.
+- **Слева** — выбор члена семьи (+ кнопка «Добавить члена семьи»).
+- **В центре** — диагнозы, анализы, динамика метрик, документы (загрузка drag&drop).
+- **Справа** — чат с Claude: вопросы по анализам, генеративные виджеты/отчёты через **AG-UI**.
+- Дизайн в стиле **Apple Health**, тёмная/светлая тема, интерфейс на русском.
 
-![Dashboard](docs/screenshots/dashboard.png)
-
-![Wearables](docs/screenshots/wearables.png)
-
-Apple Health–inspired UI (dark/light, Russian by default). Drop a PDF into the browser and the agent files it, extracts labs, updates diagnoses, and renders a report widget in the chat.
-
-## Why
-
-All my family's labs, discharges and doctor notes used to live scattered across email, doctor chats and phone screenshots. Finding a specific result was a 30-minute quest; comparing TSH over three years was effectively impossible.
-
-Now everything is one folder per person on my server. I drop a new PDF into `_inbox/` — the agent parses it, extracts each lab value with reference range and status, updates diagnoses, and moves the file into the right category. The dashboard shows active diagnoses, labs grouped by canonical panels (CBC, biochem, lipids, hormones, vitamins), metric trends and documents.
-
-**The best part is bringing it to a doctor's appointment.** I open the dashboard for whichever kid is being seen — all their active diagnoses, latest labs by panel and trends over the past year are visible at a glance. No more "there was something about hemoglobin last summer, wasn't there?", no more digging through email for the original lab PDF. If the doctor wants the source — one tap opens the original file from the folder.
-
-Wearables slot into the same folder: my Fitbit Air pushes daily steps, resting HR, sleep stages and VO₂max via `ghealth` into `data/<me>/wearables/`, so the agent can correlate a bad set of labs with three weeks of terrible sleep before I even ask.
-
-Everything stays local. No SaaS platform gets our medical records. The only outbound traffic is Claude Code's normal LLM calls under a subscription I already pay for.
-
-## Features
-
-- **Family view** — one card per person on the left; add new members from the UI. Each member has their own folder with `labs.json`, `diagnoses.json`, `metrics.json`, `documents.json` and category subfolders (`Анализы`, `Заключения`, `Выписки`, `Снимки`, `_inbox`).
-- **Dashboard** — active diagnoses, recent labs grouped by canonical panels (CBC, biochem, lipid profile, hormones, vitamins…), metric trends (weight, glucose, BP), documents with drag-and-drop upload.
-- **Chat with your data** — right-hand panel; the agent reads the active member's folder, answers questions about labs, generates reports, files new documents. Widgets stream in as `SummaryCard`, `TrendChartCard`, `ReportCard`.
-- **Structured output only** — the agent talks to the browser exclusively through the `health-ui` MCP server (`emit_message`, `emit_widget`, `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`, `run_finished`). The Claude terminal is never scraped.
-- **Wearables (optional)** — pull data from Fitbit Air, Pixel Watch, Wear OS and anything else that talks to [Google Health API v4](https://developers.google.com/health) via the [`ghealth`](https://github.com/Google-Health-API/google-health-cli) CLI. Daily rollups (steps, HR avg/min/max, active kcal — plus sleep, resting HR, VO₂max after the device's 7-day calibration) land next to labs under `data/<memberId>/wearables/YYYY-MM-DD.json`. The dashboard shows a dedicated "Wearables" section with stats tiles and 30-day trend charts; the agent can also read the rollups directly. See [`wearables/README.md`](wearables/README.md) for what actually comes through for each device.
-- **Session reuse** — one persistent tmux session (`health`) with `claude` runs in the background; each request is a `send-keys` into that REPL. No cold-start per message.
-- **Local storage only** — everything lives in `data/`. The only outbound traffic is Claude Code's normal LLM calls under your subscription.
-
-## Architecture
+## Архитектура
 
 ```
-Browser ──POST /api/chat──▶ Next.js ──tmux send-keys──▶ [tmux "health": claude REPL]
-                                                            │  MCP tools (health-ui)
-                                                            ▼
-Browser ◀──SSE /api/events── Next.js ◀──POST /api/ingest── health-ui MCP server
-
-web/                Next.js 15 (App Router) + React 19 + Tailwind + recharts
-  src/app/api/        chat, ingest, events (SSE), upload, members, auth
-  src/components/     Sidebar, Dashboard, ChatPanel, widgets/, LabGroup, ...
-  src/lib/tmux.ts     send-keys wrapper around the "health" tmux session
-mcp/                health-ui MCP server (stdio, TypeScript via tsx)
-  src/index.ts        the seven tools listed above
-runtime/            start-claude.sh: idempotently boots the tmux session
-data.example/       skeleton to copy to data/ on first run
+Браузер ──POST /api/chat──▶ Next.js ──tmux send-keys──▶ [tmux «health»: claude REPL]
+                                                              │ вызывает MCP-инструменты
+                                                              ▼
+Браузер ◀──SSE /api/events── Next.js ◀──POST /api/ingest── health-ui MCP (дочерний к claude)
 ```
 
-Personal data (`data/`) and env (`web/.env.local`) are gitignored — see `data.example/` for the layout.
+- **web/** — Next.js 15 (App Router). Читает данные из `data/`, раздаёт AG-UI события по SSE.
+- **mcp/** — `health-ui` MCP-сервер: даёт Claude инструменты `emit_message`, `emit_widget`,
+  `add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`, `run_finished`.
+  Каждый инструмент пишет JSON и/или POST-ит AG-UI событие в Next.js (`/api/ingest`).
+- **data/** — данные семьи: `family.json` + папка на каждого члена (`labs.json`, `diagnoses.json`,
+  `metrics.json`, `documents.json` и папки-категории `Анализы/`, `Заключения/`, …). Это cwd Claude.
+- **runtime/start-claude.sh** — поднимает tmux-сессию `health` с `claude`.
 
-## Working with the chat
+Структурированный вывод Claude идёт только через MCP-инструменты — терминал не парсится.
 
-The chat panel is the primary way to interact with the agent. Everything you type is prefixed on the way to Claude with `[conv:<id>][run:<id>][member:<memberId>]`, so the agent always knows which family member's folder to read.
+## Запуск
 
-**What you can ask.** Questions about labs (`"объясни ферритин 12, это норма?"`, `"когда последний раз сдавали ТТГ?"`), trends (`"покажи вес за последний год"`, `"как менялось давление?"`), diagnoses (`"что у меня из активного?"`, `"когда пересдать глюкозу?"`), or a full report (`"собери отчёт по последнему визиту к терапевту"`).
+1. **Веб-сервер** (порт 3100, т.к. 3000 на этой машине занят другим сервисом):
+   ```bash
+   cd web && npm install && npm run build
+   PORT=3100 npm start          # или: PORT=3100 npm run dev
+   ```
+   PIN по умолчанию `1234` (см. `web/.env.local`, переменная `HEALTH_PIN`).
 
-**How answers appear.** The agent replies via one or more streamed events, in order:
-- text messages (`emit_message`) rendered as Markdown;
-- widgets (`emit_widget`) — `SummaryCard` for a bullet-list summary, `TrendChartCard` for a line/area chart, `ReportCard` for a structured multi-section report;
-- data-mutation tool calls (`add_lab_results`, `save_diagnosis`, `file_document`, `update_member_json`) — the dashboard reloads on their side, so you see new labs/diagnoses appear immediately in the center column.
+2. **Сессия Claude** (нужна для чата и анализа документов):
+   ```bash
+   bash runtime/start-claude.sh        # создаёт tmux-сессию «health» с claude
+   tmux attach -t health               # при желании понаблюдать за агентом
+   ```
+   Скрипт запускает `claude --dangerously-skip-permissions --mcp-config data/.mcp.json`,
+   чтобы агент мог автономно читать файлы, двигать документы и вызывать MCP-инструменты без
+   подтверждений. Запускайте только в доверенной среде. Веб-приложение поднимет сессию само при
+   первом сообщении, но первый запуск удобнее сделать вручную и проверить, что Claude готов.
 
-The turn ends with `run_finished`, which unlocks the input.
+Открыть: <http://localhost:3100>
 
-**Uploading documents.** Drag a PDF/JPG onto the documents area (or the whole page) and it lands in `data/<memberId>/_inbox/`. Then ask the agent `"разбери входящие"` — it reads each file, extracts labs/diagnoses, files the document into the right category (`Анализы` / `Заключения` / `Выписки` / `Снимки`), updates the JSON, and reports back with widgets. If it can't tell what a file is (photo, screenshot), it moves it to `_media/` and leaves it alone.
+## Конфигурация (`web/.env.local`)
 
-**History.** Every conversation is persisted to `data/<memberId>/chat.json` — resume by refreshing the page. Each member has their own thread; switching a member in the sidebar switches the transcript. Delete a message via the chat UI to drop it from the file too.
-
-**Switching members.** The sidebar always dictates the active `memberId`. Ask something without switching first and the agent will answer about whoever is highlighted — including for kids, spouse, etc.
-
-**Voice.** If your browser supports the Web Speech API and the language is set to Russian (the UI is RU by default), the microphone button transcribes voice input into the chat box. No server-side ASR is bundled — everything happens in the browser.
-
-**Tips.**
-- Ask for a specific format: `"выведи табличкой"`, `"дай график"`, `"summary в трёх пунктах"`.
-- Combine actions: `"разбери входящие и обнови диагнозы, потом собери отчёт"` — the agent processes them sequentially in one turn.
-- If a widget looks off, just ask: `"перерисуй график только за 2026"`.
-- Rename or move a member's folder → refresh; `family.json` is the source of truth for the sidebar.
-
-## Quick start
-
-Requirements: Docker + `docker compose` plugin, and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) authenticated on the host once (`claude` — its `~/.claude` OAuth is mounted into the container).
-
-```bash
-git clone https://github.com/dailysergey/family-health.git && cd family-health
-bash deploy/deploy.sh
-```
-
-The script generates `deploy/.env` with a random ingest secret, prompts for a PIN, seeds `data/` from `data.example/` if empty, builds the image and starts the container. Full details in [`deploy/README.md`](deploy/README.md).
-
-Open <http://localhost:3100>, log in with the PIN.
-
-### Bare-metal / dev
-
-Prefer running without Docker (e.g. for local hacking on `web/`)? Node.js 20+, tmux, Claude Code CLI on the host:
-
-```bash
-cp web/.env.example web/.env.local          # edit HEALTH_PIN, HEALTH_INGEST_SECRET
-(cd web && npm install && npm run build)
-(cd mcp && npm install)
-cp -r data.example data
-bash runtime/start-claude.sh                # tmux new-session -d -s health "claude ..."
-cd web && PORT=3100 npm start               # or: pm2 start ecosystem.config.js
-```
-
-### Environment variables (`web/.env.local`)
-
-| Variable | Default | Purpose |
+| Переменная | Назначение | По умолчанию |
 |---|---|---|
-| `HEALTH_DATA_DIR` | — | absolute path to the family data folder |
-| `HEALTH_TMUX_SESSION` | `health` | tmux session name driving Claude |
-| `HEALTH_INGEST_SECRET` | — | shared secret for `/api/ingest` (must match `data/.mcp.json`) |
-| `HEALTH_PIN` | — | web-login PIN |
-| `HEALTH_START_SCRIPT` | `./runtime/start-claude.sh` | script that boots the tmux session |
+| `HEALTH_DATA_DIR` | каталог данных семьи | `/opt/health/data` |
+| `HEALTH_TMUX_SESSION` | имя tmux-сессии | `health` |
+| `HEALTH_INGEST_SECRET` | секрет для `/api/ingest` (совпадает с `data/.mcp.json`) | `dev-ingest-secret` |
+| `HEALTH_PIN` | PIN для входа | `1234` |
+| `HEALTH_START_SCRIPT` | путь к `start-claude.sh` | `/opt/health/runtime/start-claude.sh` |
 
-## Safety
-
-Claude runs with `--dangerously-skip-permissions` so it can autonomously read files, move documents between folders, and call MCP tools without prompting. Only run this on a trusted machine, don't expose the tmux socket, and put a real auth layer (basic-auth / OIDC) in front of `PORT=3100` if you publish it. The PIN is a minimal check, not a replacement for proper auth.
-
-Nothing here is a substitute for a doctor — the assistant helps you make sense of labs, not diagnose.
-
-## License
-
-MIT
+> Если меняете порт веб-сервера — обновите `HEALTH_INGEST_URL` в `data/.mcp.json` (сейчас `http://localhost:3100/api/ingest`).

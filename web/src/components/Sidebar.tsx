@@ -2,23 +2,23 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Moon, Sun, UserPlus, Smartphone } from "lucide-react";
+import { Heart, Moon, Smartphone, Sun, UserPlus } from "lucide-react";
 import { useTheme } from "next-themes";
 import type { Accent, FamilyMember } from "@/lib/types";
-import { accentVar, ageLabel, initials, tint } from "@/lib/ui";
+import { accentVar, ageLabel, initials } from "@/lib/ui";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { PushPrompt } from "./PushPrompt";
 
 function Avatar({ member, size = 40 }: { member: FamilyMember; size?: number }) {
-  const color = accentVar(member.accent);
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full text-text-on-accent font-medium shrink-0"
+      className="inline-grid place-items-center rounded-full font-bold shrink-0"
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.34,
-        background: `linear-gradient(135deg, ${color}, ${tint(color, 70)})`,
+        fontSize: size * 0.35,
+        background: accentVar(member.accent),
+        color: "var(--color-neutral-100)",
       }}
     >
       {initials(member.name)}
@@ -26,11 +26,19 @@ function Avatar({ member, size = 40 }: { member: FamilyMember; size?: number }) 
   );
 }
 
+function profilesLabel(n: number) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} профиль`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return `${n} профиля`;
+  return `${n} профилей`;
+}
+
 export function Sidebar({ members, activeId }: { members: FamilyMember[]; activeId: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [adding, setAdding] = useState(false);
+  const dark = resolvedTheme === "dark";
 
   const select = (id: string) => {
     const next = new URLSearchParams(params.toString());
@@ -39,13 +47,24 @@ export function Sidebar({ members, activeId }: { members: FamilyMember[]; active
   };
 
   return (
-    <aside className="w-full md:w-[280px] md:shrink-0 md:h-screen bg-bg-secondary border-b md:border-b-0 md:border-r border-separator flex flex-col">
-      <div className="px-5 pt-6 pb-4">
-        <div className="text-title-2 text-text-primary">Здоровье семьи</div>
-        <div className="text-subheadline text-text-tertiary mt-0.5">{members.length} профиля</div>
+    <aside
+      className="w-[220px] lg:w-[268px] shrink-0 h-screen flex flex-col gap-6 px-4 pt-7 pb-5 overflow-y-auto"
+      style={{ background: "var(--color-surface)" }}
+    >
+      <div className="flex items-center gap-3 px-2">
+        <span
+          className="w-10 h-10 rounded-full grid place-items-center shrink-0"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          <Heart size={20} strokeWidth={2.75} />
+        </span>
+        <span className="flex flex-col">
+          <span className="font-heading text-xl leading-[1.1]">Здоровье семьи</span>
+          <span className="text-xs text-muted">{profilesLabel(members.length)}</span>
+        </span>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 space-y-1">
+      <nav className="flex flex-col gap-1">
         {members.map((m) => {
           const active = m.id === activeId;
           return (
@@ -53,61 +72,48 @@ export function Sidebar({ members, activeId }: { members: FamilyMember[]; active
               key={m.id}
               type="button"
               onClick={() => select(m.id)}
-              className="relative w-full h-16 px-3 flex items-center gap-3 rounded-inner text-left transition-colors duration-150"
-              style={active ? { backgroundColor: tint("var(--color-brand)", 10) } : undefined}
-              onMouseEnter={(e) => {
-                if (!active) e.currentTarget.style.backgroundColor = "rgba(127,127,127,0.06)";
-              }}
-              onMouseLeave={(e) => {
-                if (!active) e.currentTarget.style.backgroundColor = "";
-              }}
+              aria-current={active ? "page" : undefined}
+              className="w-full flex items-center gap-3 p-2.5 rounded-[16px] text-left transition-colors hover:bg-[var(--color-neutral-200)]"
+              style={active ? { background: "var(--color-neutral-100)" } : undefined}
             >
-              {active && (
-                <span className="absolute left-0 inset-y-3 w-[3px] rounded-full" style={{ backgroundColor: "var(--color-brand)" }} />
-              )}
               <Avatar member={m} />
-              <span className="min-w-0">
-                <span
-                  className="block text-headline truncate"
-                  style={{ color: active ? "var(--color-brand)" : "var(--color-text-primary)" }}
-                >
-                  {m.name}
-                </span>
-                <span className="block text-subheadline text-text-tertiary truncate">
+              <span className="flex flex-col min-w-0 flex-1">
+                <span className="font-semibold text-sm truncate">{m.name.split(" ").slice(1).join(" ") || m.name}</span>
+                <span className="text-xs text-muted truncate">
                   {[m.relation, ageLabel(m.birthDate)].filter(Boolean).join(" · ")}
                 </span>
               </span>
             </button>
           );
         })}
-
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="w-full h-14 mt-1 flex items-center justify-center gap-2 rounded-card border-[1.5px] border-dashed border-separator text-text-tertiary hover:text-brand hover:border-brand transition-colors"
+          className="btn btn-ghost justify-start mt-1.5 text-[13px] gap-2.5"
+          style={{ color: "var(--color-neutral-700)" }}
         >
-          <UserPlus size={18} />
-          <span className="text-subheadline">Добавить члена семьи</span>
+          <UserPlus size={16} strokeWidth={2.5} />
+          Добавить члена семьи
         </button>
       </nav>
 
-      <div className="p-3 border-t border-separator space-y-1">
-        <PushPrompt memberId={activeId} />
+      <div className="mt-auto flex flex-col gap-0.5">
         <button
           type="button"
           onClick={() => router.push("/settings/wearables")}
-          className="w-full h-11 flex items-center justify-center gap-2 rounded-inner text-text-secondary hover:bg-[rgba(127,127,127,0.08)] transition-colors"
+          className="btn btn-ghost justify-start gap-2.5 text-[13px]"
         >
-          <Smartphone size={18} />
-          <span className="text-subheadline">Устройства</span>
+          <Smartphone size={16} strokeWidth={2.5} />
+          Устройства
         </button>
+        <PushPrompt memberId={activeId} />
         <button
           type="button"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="w-full h-11 flex items-center justify-center gap-2 rounded-inner text-text-secondary hover:bg-[rgba(127,127,127,0.08)] transition-colors"
+          onClick={() => setTheme(dark ? "light" : "dark")}
+          className="btn btn-ghost justify-start gap-2.5 text-[13px]"
         >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          <span className="text-subheadline">{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
+          {dark ? <Sun size={16} strokeWidth={2.5} /> : <Moon size={16} strokeWidth={2.5} />}
+          {dark ? "Светлая тема" : "Тёмная тема"}
         </button>
       </div>
 

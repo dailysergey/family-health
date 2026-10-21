@@ -6,8 +6,15 @@ import type { AguiEnvelope } from "./agui";
 
 type Listener = (event: AguiEnvelope) => void;
 
+// A run without RUN_FINISHED (agent forgot to call run_finished) stops being
+// replayed to new connections after this long.
+const ACTIVE_RUN_TTL_MS = 10 * 60 * 1000;
+
 class EventBus {
   private emitter = new EventEmitter();
+  // Last RUN_STARTED per conversation, so a (re)connecting client learns that
+  // the assistant is still working.
+  private activeRuns = new Map<string, AguiEnvelope>();
 
   constructor() {
     // Many SSE clients may subscribe to the same conversation.
@@ -15,7 +22,23 @@ class EventBus {
   }
 
   publish(event: AguiEnvelope): void {
+    if (event.type === "RUN_STARTED") this.activeRuns.set(event.conversationId, event);
+    else if (
+      event.type === "RUN_FINISHED" ||
+      event.type === "RUN_ERROR" ||
+      (event.type === "CUSTOM" && event.name === "history_cleared")
+    )
+      this.activeRuns.delete(event.conversationId);
     this.emitter.emit(event.conversationId, event);
+  }
+
+  activeRun(conversationId: string): AguiEnvelope | undefined {
+    const run = this.activeRuns.get(conversationId);
+    if (run && Date.now() - run.timestamp > ACTIVE_RUN_TTL_MS) {
+      this.activeRuns.delete(conversationId);
+      return undefined;
+    }
+    return run;
   }
 
   subscribe(conversationId: string, listener: Listener): () => void {

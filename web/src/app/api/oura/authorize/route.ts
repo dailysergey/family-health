@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-// GET /api/oura/authorize?member=primary
+// GET /api/oura/authorize?member=sergey
 // Redirects to Oura OAuth consent screen
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const memberId = (url.searchParams.get("member") ?? "primary").replace(/[^a-zA-Z0-9_-]/g, "");
+  const memberId = (url.searchParams.get("member") ?? "sergey").replace(/[^a-zA-Z0-9_-]/g, "");
 
   const clientId = process.env.OURA_CLIENT_ID;
   const redirectUri = process.env.OURA_REDIRECT_URI;
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "email personal daily heartrate workout tag session",
+    scope: "email personal daily heartrate workout tag session meals",
     state: memberId,
   });
 

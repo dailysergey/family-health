@@ -23,6 +23,10 @@ export async function GET(req: NextRequest) {
       // Initial comment so the client opens the connection immediately.
       controller.enqueue(encoder.encode(": connected\n\n"));
 
+      // Replay an in-flight run so the "typing" indicator survives reconnects.
+      const run = bus.activeRun(conversationId);
+      if (run) send(run);
+
       const unsubscribe = bus.subscribe(conversationId, send);
 
       // Keep-alive ping to defeat proxy idle timeouts.

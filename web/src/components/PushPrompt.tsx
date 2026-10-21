@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 
 type Status = "idle" | "loading" | "subscribed" | "denied" | "unsupported";
 
-export function PushPrompt({ memberId = "primary" }: { memberId?: string }) {
+export function PushPrompt({ memberId = "sergey" }: { memberId?: string }) {
   const [status, setStatus] = useState<Status>("idle");
 
   useEffect(() => {
@@ -88,20 +88,16 @@ export function PushPrompt({ memberId = "primary" }: { memberId?: string }) {
       type="button"
       onClick={status === "subscribed" ? unsubscribe : subscribe}
       disabled={status === "loading" || status === "denied"}
-      className="w-full h-11 flex items-center justify-center gap-2 rounded-inner transition-colors"
-      style={{
-        color: status === "subscribed" ? "var(--color-brand)" : "var(--color-text-secondary)",
-        background: status === "subscribed" ? "rgba(0,122,255,0.08)" : undefined,
-      }}
+      className="btn btn-ghost justify-start gap-2.5 text-[13px] w-full"
     >
       {status === "loading" ? (
-        <Loader2 size={18} className="animate-spin" />
+        <Loader2 size={16} className="animate-spin" />
       ) : status === "subscribed" ? (
-        <Bell size={18} />
+        <Bell size={16} strokeWidth={2.5} />
       ) : (
-        <BellOff size={18} />
+        <BellOff size={16} strokeWidth={2.5} />
       )}
-      <span className="text-subheadline">
+      <span>
         {status === "subscribed" ? "Уведомления вкл." :
          status === "denied"     ? "Уведомления заблок." :
          "Включить уведомления"}

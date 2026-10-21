@@ -44,6 +44,11 @@ export async function POST(req: NextRequest) {
 
   for (const event of events) {
     if (!event || typeof event.conversationId !== "string" || !event.type) continue;
+    // Give widgets a stable id shared by the live event and the persisted
+    // transcript, so the client can merge history without duplicates.
+    if (event.type === "CUSTOM" && event.name === "widget" && !event.messageId) {
+      event.messageId = randomUUID();
+    }
     bus.publish(event);
 
     const messageId = event.messageId as string | undefined;
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
               }
             }
             queue(event.conversationId, {
-              id: (messageId as string) ?? randomUUID(),
+              id: messageId as string,
               kind: "widget",
               widgetType: v.widgetType,
               props,
