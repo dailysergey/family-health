@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function ScrollToTop() {
+export function ScrollToTop({ className = "md:right-6" }: { className?: string }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -40,10 +40,11 @@ export function ScrollToTop() {
     <button
       onClick={scrollUp}
       aria-label="Наверх"
-      className="fixed bottom-20 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 md:bottom-6"
+      className={`fixed bottom-20 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 md:bottom-6 ${className}`}
       style={{
-        background: "var(--accent)",
-        color: "#fff",
+        background: "var(--color-accent)",
+        color: "var(--color-bg)",
+        boxShadow: "var(--shadow-md)",
         opacity: 0.9,
       }}
     >
