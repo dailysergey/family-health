@@ -1,7 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { Caprasimo, Manrope, Yeseva_One } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+
+// Organic: Caprasimo для заголовков и цифр; у него нет кириллицы, поэтому
+// русские буквы заголовков берёт Yeseva One. Текст — Manrope (кириллица).
+const caprasimo = Caprasimo({
+  subsets: ["latin"],
+  variable: "--font-caprasimo",
+  weight: "400",
+  display: "swap",
+});
+
+const yeseva = Yeseva_One({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-yeseva",
+  weight: "400",
+  display: "swap",
+});
 
 const manrope = Manrope({
   subsets: ["latin", "cyrillic"],
@@ -24,6 +40,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#f5ead8",
 };
 
 export default function RootLayout({
@@ -32,8 +49,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" suppressHydrationWarning>
-      <body className={`${manrope.variable} font-sans antialiased`}>
+    <html lang="ru" suppressHydrationWarning className={`${caprasimo.variable} ${yeseva.variable} ${manrope.variable}`}>
+      <body className="font-sans antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

@@ -3,8 +3,8 @@
 Синхронизация данных Oura Ring → /opt/health/data/<member>/wearables/YYYY-MM-DD.json
 
 Использование:
-  oura_sync.py                    # последние 2 дня, member=primary
-  oura_sync.py --member primary --days 7
+  oura_sync.py                    # последние 2 дня, member=sergey
+  oura_sync.py --member sergey --days 7
   oura_sync.py --backfill 30      # история за 30 дней
 """
 
@@ -59,7 +59,7 @@ def refresh_access_token(member_id: str) -> str:
     """Получаем новый access_token через refresh_token."""
     tokens = load_tokens(member_id)
     if not tokens.get("refresh_token"):
-        raise RuntimeError(f"No tokens for {member_id}. Run OAuth first: {SITE_URL}/api/oura/authorize?member={member_id}")
+        raise RuntimeError(f"No tokens for {member_id}. Run OAuth first: https://health.sguskov.com/api/oura/authorize?member={member_id}")
 
     # Проверяем не истёк ли текущий (с запасом 5 мин)
     if tokens.get("expires_at", 0) > (datetime.datetime.now().timestamp() * 1000 + 300_000):
@@ -110,28 +110,42 @@ def oura_get(endpoint: str, access_token: str, params: dict) -> dict:
 def fetch_day(date_str: str, access_token: str) -> dict:
     """Забираем все нужные данные за один день."""
     p = {"start_date": date_str, "end_date": date_str}
+    # daily_activity с точным диапазоном start=end часто возвращает 0 items —
+    # расширяем end_date на +1 день и фильтруем по day
+    _act_end = (datetime.date.fromisoformat(date_str) + datetime.timedelta(days=1)).isoformat()
+    p_activity = {"start_date": date_str, "end_date": _act_end}
 
-    daily_activity  = oura_get("daily_activity",  access_token, p)
+    daily_activity  = oura_get("daily_activity",  access_token, p_activity)
     daily_sleep     = oura_get("daily_sleep",     access_token, p)
     daily_readiness = oura_get("daily_readiness", access_token, p)
     daily_spo2      = oura_get("daily_spo2",      access_token, p)
+    # Oura /sleep API с узким диапазоном часто возвращает пустой массив —
+    # запрашиваем 14 дней назад и фильтруем нужный day
+    _sleep_start = (datetime.date.fromisoformat(date_str) - datetime.timedelta(days=14)).isoformat()
+    _sleep_end   = (datetime.date.fromisoformat(date_str) + datetime.timedelta(days=1)).isoformat()
+    sleep_sessions  = oura_get("sleep", access_token, {"start_date": _sleep_start, "end_date": _sleep_end})
     heartrate       = oura_get("heartrate",       access_token, {
         "start_datetime": f"{date_str}T00:00:00+00:00",
         "end_datetime":   f"{date_str}T23:59:59+00:00",
     })
-    hrv_data        = oura_get("heartrate",       access_token, {
-        "start_datetime": f"{date_str}T00:00:00+00:00",
-        "end_datetime":   f"{date_str}T23:59:59+00:00",
-    })
 
-    def first(resp: dict):
+    def first(resp: dict, filter_day: str = None):
         data = resp.get("data") or resp.get("dataPoints") or []
+        if filter_day:
+            data = [d for d in data if d.get("day") == filter_day]
         return data[0] if data else {}
 
-    act  = first(daily_activity)
+    act  = first(daily_activity, filter_day=date_str)
     slp  = first(daily_sleep)
     read = first(daily_readiness)
     spo2 = first(daily_spo2)
+
+    # Выбираем основную сессию сна за нужный день: предпочитаем long_sleep
+    sleep_sessions_list = [s for s in (sleep_sessions.get("data") or []) if s.get("day") == date_str]
+    main_session = next(
+        (s for s in sleep_sessions_list if s.get("type") == "long_sleep"),
+        sleep_sessions_list[0] if sleep_sessions_list else {}
+    )
 
     # Heartrate array → вычисляем avg/min/resting
     hr_items = heartrate.get("data") or []
@@ -147,17 +161,21 @@ def fetch_day(date_str: str, access_token: str) -> dict:
     # Active calories
     active_kcal = act.get("active_calories") or act.get("high_activity_met_minutes")
 
-    # Sleep
+    # Sleep — берём из сессии (точные данные), score из daily_sleep
     sleep_contrib = slp.get("contributors", {})
-    sleep_eff = slp.get("efficiency")  # 0-100 от Oura
     sleep_score = slp.get("score")
-    total_sleep_sec = slp.get("total_sleep_duration")
+    total_sleep_sec = main_session.get("total_sleep_duration")
     sleep_min = round(total_sleep_sec / 60) if total_sleep_sec else None
+    sleep_eff = main_session.get("efficiency") or slp.get("efficiency")
 
     # Readiness
     readiness_score = read.get("score")
-    rhr_oura = read.get("lowest_resting_heart_rate") or act.get("lowest_heart_rate")
-    hrv_oura = read.get("average_hrv") or slp.get("average_hrv")
+    # daily_readiness/daily_sleep часто не возвращают avg_hrv и rhr (scope ограничен),
+    # fallback на sleep-сессию — там эти поля всегда есть
+    rhr_oura = (read.get("lowest_resting_heart_rate") or act.get("lowest_heart_rate")
+                or main_session.get("lowest_heart_rate"))
+    hrv_oura = (read.get("average_hrv") or slp.get("average_hrv")
+                or main_session.get("average_hrv"))
 
     # Oura sub-contributor scores (0–100) from daily_readiness.contributors
     contribs = read.get("contributors", {})
@@ -214,6 +232,7 @@ def fetch_day(date_str: str, access_token: str) -> dict:
         "_oura": {
             "readiness":    read,
             "sleep":        slp,
+            "sleep_session": main_session,
             "activity":     act,
         },
     }
@@ -254,7 +273,7 @@ def sync_member(member_id: str, days: int):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--member",   default="primary")
+    parser.add_argument("--member",   default="sergey")
     parser.add_argument("--days",     type=int, default=2)
     parser.add_argument("--backfill", type=int, default=0, help="Синхронизировать N дней истории")
     args = parser.parse_args()

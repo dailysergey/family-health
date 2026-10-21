@@ -3,10 +3,22 @@ import { randomUUID } from "node:crypto";
 import { bus } from "@/lib/bus";
 import { ev } from "@/lib/agui";
 import { sendPrompt } from "@/lib/tmux";
-import { appendChatItems, getWearables } from "@/lib/store";
+import { appendChatItems, getChatHistory, getMember, getWearables } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// Persisted transcript for a member; the client re-reads it on (re)connect to
+// catch up on events it missed while the SSE stream was down or unmounted.
+export async function GET(req: NextRequest) {
+  const memberId = req.nextUrl.searchParams.get("memberId") ?? "";
+  if (!memberId || !(await getMember(memberId))) {
+    return new Response("unknown member", { status: 404 });
+  }
+  return Response.json(await getChatHistory(memberId), {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
 
 // Accept a user message, echo it to the conversation, and forward it to the
 // persistent Claude session in tmux.

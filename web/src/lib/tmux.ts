@@ -24,9 +24,26 @@ async function hasSession(): Promise<boolean> {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Pane commands that mean Claude is NOT running (it exited and the pane fell
+// back to a shell/placeholder). Typing a prompt there would execute it as shell.
+const DEAD_PANE_COMMANDS = new Set(["bash", "sh", "zsh", "dash", "sleep", "tail"]);
+
+async function claudeAlive(): Promise<boolean> {
+  try {
+    const { stdout } = await exec("tmux", ["display-message", "-p", "-t", TMUX_SESSION, "#{pane_current_command}"]);
+    return !DEAD_PANE_COMMANDS.has(stdout.trim());
+  } catch {
+    return false;
+  }
+}
+
 /** Ensure the tmux Claude session exists; starts it once if missing. */
 export async function ensureSession(): Promise<void> {
-  if (await hasSession()) return;
+  if (await hasSession()) {
+    if (await claudeAlive()) return;
+    // Claude exited (e.g. trust dialog answered "No", crash): recreate the session.
+    await exec("tmux", ["kill-session", "-t", TMUX_SESSION]).catch(() => {});
+  }
   if (!starting) {
     starting = (async () => {
       await exec("bash", [START_SCRIPT], {
@@ -47,8 +64,12 @@ let queue: Promise<void> = Promise.resolve();
 /** Send a single-line prompt to the Claude session and submit it. */
 export function sendPrompt(text: string): Promise<void> {
   const oneLine = text.replace(/[\r\n]+/g, " ").trim();
-  queue = queue.then(async () => {
+  // .catch: one failed delivery must not poison the queue for later prompts.
+  queue = queue.catch(() => {}).then(async () => {
     await ensureSession();
+    if (!(await claudeAlive())) {
+      throw new Error(`Claude is not running in tmux session '${TMUX_SESSION}'`);
+    }
     // Send the literal text, then submit with Enter as a separate keystroke.
     await exec("tmux", ["send-keys", "-t", TMUX_SESSION, "-l", oneLine]);
     await delay(150);

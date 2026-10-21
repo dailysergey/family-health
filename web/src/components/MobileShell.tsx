@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Dashboard } from "./Dashboard";
 import { ChatPanel } from "./ChatPanel";
 import { BottomNav } from "./BottomNav";
 import type { MemberBundle, FamilyMember, ChatStoredItem } from "@/lib/types";
+import { ScrollToTop } from "./ScrollToTop";
+import { ASK_EVENT } from "./dashboard/primitives";
 
+// One dashboard and one chat panel for every viewport; CSS decides where the
+// chat lives: a right column on desktop (auto-open from xl, overlay below),
+// a bottom drawer on mobile. A single ChatPanel means a single SSE stream.
 export function MobileShell({
   members,
   bundle,
@@ -19,90 +23,74 @@ export function MobileShell({
   conversationId: string;
   chatHistory: ChatStoredItem[];
 }) {
-  const [chatOpen, setChatOpen] = useState(false);
+  const [mobileChat, setMobileChat] = useState(false);
+  // null = auto: shown from xl (≥1280px), hidden on narrower desktops.
+  const [deskChat, setDeskChat] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const open = () => {
+      if (window.matchMedia("(min-width: 768px)").matches) setDeskChat(true);
+      else setMobileChat(true);
+    };
+    window.addEventListener(ASK_EVENT, open);
+    return () => window.removeEventListener(ASK_EVENT, open);
+  }, []);
+
+  const closeChat = () => {
+    if (window.matchMedia("(min-width: 768px)").matches) setDeskChat(false);
+    else setMobileChat(false);
+  };
+
+  const mobileCls = mobileChat ? "flex fixed inset-x-0 bottom-0 top-[8vh] z-40 rounded-t-[28px]" : "hidden";
+  const deskCls =
+    deskChat === true
+      ? "md:flex md:absolute md:left-auto md:right-0 md:top-0 md:bottom-auto md:z-30 xl:static"
+      : deskChat === false
+        ? "md:hidden"
+        : "md:hidden xl:flex xl:static";
+  const assistantButtonClass =
+    deskChat === true ? "hidden" : deskChat === false ? "hidden md:inline-flex" : "hidden md:inline-flex xl:hidden";
 
   return (
     <>
-      {/* ───────────── Desktop layout (md+) ───────────── */}
-      <div className="hidden md:flex md:flex-row md:h-screen md:overflow-hidden">
-        <Sidebar members={members} activeId={bundle.member.id} />
-        <Dashboard bundle={bundle} conversationId={conversationId} />
-        <ChatPanel
-          key={conversationId}
+      <div className="md:flex md:h-screen md:overflow-hidden relative overflow-x-clip pb-[calc(64px+env(safe-area-inset-bottom,0px))] md:pb-0">
+        <div className="hidden md:flex">
+          <Sidebar members={members} activeId={bundle.member.id} />
+        </div>
+
+        <Dashboard
+          bundle={bundle}
           conversationId={conversationId}
-          memberId={bundle.member.id}
-          memberName={bundle.member.name}
-          initialItems={chatHistory}
+          assistantButtonClass={assistantButtonClass}
+          onOpenAssistant={() => setDeskChat(true)}
         />
-      </div>
 
-      {/* ───────────── Mobile layout ───────────── */}
-      <div className="flex flex-col md:hidden min-h-screen bg-bg-primary">
-        {/* Основной контент — с отступом снизу под bottom nav */}
-        <div className="flex-1 overflow-y-auto" style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" }}>
-          <Dashboard bundle={bundle} conversationId={conversationId} />
-        </div>
-
-        {/* Bottom nav */}
-        <BottomNav
-          members={members}
-          activeId={bundle.member.id}
-          chatOpen={chatOpen}
-          onChatToggle={() => setChatOpen((v) => !v)}
-        />
-      </div>
-
-      {/* ───────────── Chat drawer (mobile) ───────────── */}
-      {chatOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
-            onClick={() => setChatOpen(false)}
+        {mobileChat && (
+          <div className="fixed inset-0 z-40 md:hidden bg-black/30 backdrop-blur-[2px]" onClick={() => setMobileChat(false)} />
+        )}
+        <div
+          className={`${mobileCls} ${deskCls} flex-col overflow-hidden md:rounded-none md:h-screen md:w-[380px] md:max-w-[100vw] md:shrink-0 pb-[calc(64px+env(safe-area-inset-bottom,0px))] md:pb-0`}
+          style={{ background: "var(--color-neutral-100)", boxShadow: "var(--shadow-lg)" }}
+        >
+          <ChatPanel
+            key={conversationId}
+            conversationId={conversationId}
+            memberId={bundle.member.id}
+            memberName={bundle.member.name}
+            initialItems={chatHistory}
+            onClose={closeChat}
           />
-
-          {/* Drawer */}
-          <div
-            className="absolute inset-x-0 bottom-0 bg-bg-secondary rounded-t-[28px] shadow-modal flex flex-col overflow-hidden"
-            style={{
-              top: "8vh",
-              paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))",
-            }}
-          >
-            {/* Drag handle */}
-            <div className="shrink-0 flex flex-col items-center pt-3 pb-2">
-              <div className="w-10 h-1 rounded-full bg-fill-quaternary" />
-            </div>
-
-            {/* Header */}
-            <div className="shrink-0 flex items-center justify-between px-4 pb-3">
-              <div>
-                <p className="text-headline font-semibold text-text-primary">Ассистент</p>
-                <p className="text-caption-1 text-text-tertiary">{bundle.member.name}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setChatOpen(false)}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-full bg-fill-quaternary text-text-secondary"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Chat panel — takes remaining space */}
-            <div className="flex-1 min-h-0">
-              <ChatPanel
-                key={`mobile-${conversationId}`}
-                conversationId={conversationId}
-                memberId={bundle.member.id}
-                memberName={bundle.member.name}
-                initialItems={chatHistory}
-                hideHeader
-              />
-            </div>
-          </div>
         </div>
-      )}
+      </div>
+
+      <BottomNav
+        members={members}
+        activeId={bundle.member.id}
+        chatOpen={mobileChat}
+        onChatToggle={() => setMobileChat((v) => !v)}
+      />
+
+      <ScrollToTop />
     </>
   );
 }

@@ -38,7 +38,7 @@ const ENV = loadEnv("/opt/health/web/.env.local");
 
 const VAPID_PUBLIC  = ENV["NEXT_PUBLIC_VAPID_PUBLIC_KEY"] || "";
 const VAPID_PRIVATE = ENV["VAPID_PRIVATE_KEY"] || "";
-const VAPID_SUBJECT = ENV["VAPID_SUBJECT"]     || "mailto:you@example.com";
+const VAPID_SUBJECT = ENV["VAPID_SUBJECT"]     || "mailto:gusevski.dev@gmail.com";
 const DATA_DIR      = process.env.HEALTH_DATA_DIR || "/opt/health/data";
 const SUBS_FILE     = path.join(DATA_DIR, "push-subscriptions.json");
 

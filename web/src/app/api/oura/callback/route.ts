@@ -9,7 +9,7 @@ const DATA_DIR = process.env.HEALTH_DATA_DIR ?? "/opt/health/data";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const memberId = (url.searchParams.get("state") ?? "primary").replace(/[^a-zA-Z0-9_-]/g, "");
+  const memberId = (url.searchParams.get("state") ?? "sergey").replace(/[^a-zA-Z0-9_-]/g, "");
   const error = url.searchParams.get("error");
 
   if (error) {

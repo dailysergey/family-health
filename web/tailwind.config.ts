@@ -7,7 +7,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
-          "var(--font-inter)",
+          "var(--font-manrope)",
           "SF Pro Display",
           "SF Pro Text",
           "-apple-system",

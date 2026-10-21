@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 type State = "idle" | "recording" | "transcribing";
+
+// Safari/iOS records mp4/aac, Chrome/Firefox webm/opus; pick what the browser can do.
+const MIME_CANDIDATES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+
+function pickMime(): string | undefined {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return undefined;
+  return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m));
+}
+
+function extFor(mime: string): string {
+  if (mime.includes("mp4") || mime.includes("aac")) return "m4a";
+  if (mime.includes("ogg")) return "ogg";
+  return "webm";
+}
 
 interface MicButtonProps {
   onTranscription: (text: string) => void;
@@ -14,30 +28,51 @@ export function MicButton({ onTranscription }: MicButtonProps) {
   const chunksRef = useRef<Blob[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const waveCleanupRef = useRef<(() => void) | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fail = useCallback((msg: string) => {
+    setError(msg);
+    setTimeout(() => setError(null), 4000);
+  }, []);
 
   const handleTranscribe = useCallback(
     async (blob: Blob) => {
       setState("transcribing");
       try {
         const fd = new FormData();
-        fd.append("audio", blob, "recording.webm");
+        fd.append("audio", blob, `recording.${extFor(blob.type)}`);
         const res = await fetch("/api/asr/transcribe", { method: "POST", body: fd });
-        if (!res.ok) throw new Error("ASR error");
-        const data = (await res.json()) as { text?: string };
+        const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+        if (!res.ok) throw new Error(data.error ?? `ASR ${res.status}`);
         if (data.text) onTranscription(data.text);
+        else fail("Речь не распознана — попробуйте ещё раз");
       } catch (err) {
         console.error("Transcription failed:", err);
+        fail("Не удалось распознать речь");
       } finally {
         setState("idle");
       }
     },
-    [onTranscription],
+    [onTranscription, fail],
   );
 
   const startRecording = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      fail("Браузер не поддерживает запись звука");
+      return;
+    }
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      console.error("Mic access denied:", err);
+      fail("Нет доступа к микрофону — разрешите его в настройках браузера");
+      return;
+    }
+    try {
+      const mime = pickMime();
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -50,20 +85,30 @@ export function MicButton({ onTranscription }: MicButtonProps) {
           waveCleanupRef.current();
           waveCleanupRef.current = null;
         }
-        void handleTranscribe(new Blob(chunksRef.current, { type: "audio/webm" }));
+        streamRef.current = null;
+        void handleTranscribe(new Blob(chunksRef.current, { type: recorder.mimeType || mime || "audio/webm" }));
       };
 
       recorder.start();
       mediaRecorderRef.current = recorder;
+      streamRef.current = stream;
       setState("recording");
-
-      if (canvasRef.current) {
-        waveCleanupRef.current = createWaveform(stream, canvasRef.current);
-      }
     } catch (err) {
-      console.error("Mic access denied:", err);
+      stream.getTracks().forEach((t) => t.stop());
+      console.error("MediaRecorder failed:", err);
+      fail("Не удалось начать запись");
     }
-  }, [handleTranscribe]);
+  }, [handleTranscribe, fail]);
+
+  // The waveform canvas only exists once the "recording" state has rendered.
+  useEffect(() => {
+    if (state !== "recording" || !canvasRef.current || !streamRef.current || waveCleanupRef.current) return;
+    try {
+      waveCleanupRef.current = createWaveform(streamRef.current, canvasRef.current);
+    } catch {
+      /* waveform is decorative */
+    }
+  }, [state]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && state === "recording") {
@@ -77,7 +122,9 @@ export function MicButton({ onTranscription }: MicButtonProps) {
   }, [state, startRecording, stopRecording]);
 
   const color =
-    state === "recording"
+    error
+      ? "var(--color-accent-700)"
+      : state === "recording"
       ? "var(--color-status-high)"
       : state === "transcribing"
         ? "var(--color-brand)"
@@ -87,14 +134,15 @@ export function MicButton({ onTranscription }: MicButtonProps) {
     <button
       type="button"
       aria-label={
-        state === "recording" ? "Остановить запись" : state === "transcribing" ? "Транскрибирую…" : "Голосовой ввод"
+        error ?? (state === "recording" ? "Остановить запись" : state === "transcribing" ? "Транскрибирую…" : "Голосовой ввод")
       }
+      title={error ?? undefined}
       onClick={toggle}
       disabled={state === "transcribing"}
       className="relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full transition-all duration-150"
       style={{
         color,
-        background: state === "recording" ? "rgba(255,59,48,0.1)" : "transparent",
+        background: state === "recording" ? "var(--color-accent-100)" : "transparent",
       }}
     >
       {state === "transcribing" ? (
@@ -125,6 +173,15 @@ export function MicButton({ onTranscription }: MicButtonProps) {
           className="absolute inset-0 pointer-events-none"
           style={{ opacity: 0.8 }}
         />
+      )}
+      {error && (
+        <span
+          role="status"
+          className="absolute bottom-full right-0 mb-2 w-max max-w-[240px] px-3 py-2 rounded-[12px] text-xs text-left leading-snug z-30"
+          style={{ background: "var(--color-text)", color: "var(--color-neutral-100)", boxShadow: "var(--shadow-md)" }}
+        >
+          {error}
+        </span>
       )}
     </button>
   );
@@ -159,7 +216,7 @@ function createWaveform(stream: MediaStream, canvas: HTMLCanvasElement): () => v
       const level = data[idx] / 255;
       const h = 4 + Math.round(level * 14);
       const y = (canvas.height - h) / 2;
-      ctx.fillStyle = "rgba(255,59,48,0.85)";
+      ctx.fillStyle = getComputedStyle(canvas).color || "#8c491a";
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(x, y, barW, h, 1.5);
       else ctx.rect(x, y, barW, h);

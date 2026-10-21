@@ -14,6 +14,7 @@ import {
   Sparkles,
   Terminal,
   Trash2,
+  X,
 } from "lucide-react";
 import { useAguiStream } from "@/hooks/useAguiStream";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
@@ -22,27 +23,25 @@ import { MicButton } from "./MicButton";
 import { TypingIndicator } from "./TypingIndicator";
 import { WidgetRenderer } from "./WidgetRenderer";
 import type { ChatStoredItem } from "@/lib/types";
+import { ASK_EVENT } from "./dashboard/primitives";
 
 const SUGGESTIONS = [
   "Что не так в моих анализах?",
-  "Покажи динамику давления",
-  "Объясни мой диагноз простыми словами",
+  "Что пересдать и когда?",
+  "Объясни диагноз проще",
 ];
 
 // ── Markdown renderer (completed messages) ──────────────────────────────────
 function AssistantMarkdown({ text }: { text: string }) {
   return (
-    <div className="markdown text-callout text-text-primary leading-relaxed">
+    <div className="markdown text-sm leading-normal">
       <ReactMarkdown>{text}</ReactMarkdown>
     </div>
   );
 }
 
 // ── Single message bubble ────────────────────────────────────────────────────
-// User: тёплый градиент вместо сплошного brand-цвета — так bubble сидит на
-// беже, а не «стреляет» цветом (bender-паттерн). Assistant: аватар с
-// accent-градиентом и мягким glow, сам пузырь — panel без тени, только тонкий
-// border, чтобы markdown-типографика читалась естественно.
+// Organic: user — терракотовая «капля» справа, assistant — тёплый серый слева.
 function MessageBubble({
   role,
   text,
@@ -54,62 +53,47 @@ function MessageBubble({
 }) {
   if (role === "user") {
     return (
-      <div className="flex justify-end" style={{ animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)" }}>
-        <div
-          className="max-w-[80%] text-text-primary text-body rounded-[18px] rounded-br-[4px] px-3.5 py-2.5 whitespace-pre-wrap break-words shadow-soft"
-          style={{
-            background: "var(--user-bg)",
-            border: "1px solid var(--color-separator)",
-          }}
-        >
-          {text}
-        </div>
+      <div
+        className="self-end max-w-[82%] px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words"
+        style={{
+          background: "var(--color-accent)",
+          color: "var(--color-bg)",
+          borderRadius: "18px 18px 6px 18px",
+          animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)",
+        }}
+      >
+        {text}
       </div>
     );
   }
 
   return (
-    <div className="flex gap-2 items-start" style={{ animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)" }}>
-      <span
-        className="w-7 h-7 rounded-full inline-flex items-center justify-center shrink-0 mt-0.5"
-        style={{
-          background: "var(--accent-grad)",
-          boxShadow: "var(--shadow-accent)",
-        }}
-      >
-        <Sparkles size={14} color="#fff" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div
-          className="rounded-[18px] rounded-bl-[4px] px-4 py-3"
-          style={{
-            background: "var(--panel)",
-            border: "1px solid var(--color-separator)",
-          }}
-        >
-          {streaming ? (
-            // Streaming: plain pre-wrap until finish so markdown doesn't flicker
-            <p
-              className="text-callout text-text-primary leading-relaxed whitespace-pre-wrap break-words"
-              style={{ minHeight: "1.4em" }}
-            >
-              {text}
-              <span
-                className="inline-block align-middle ml-[1px]"
-                style={{
-                  width: 2,
-                  height: "1em",
-                  background: "var(--accent)",
-                  opacity: 0.85,
-                  animation: "caretBlink 0.9s ease infinite",
-                }}
-              />
-            </p>
-          ) : (
-            <AssistantMarkdown text={text} />
-          )}
-        </div>
-      </div>
+    <div
+      className="max-w-[94%] px-4 py-3.5 min-w-0"
+      style={{
+        background: "var(--color-neutral-200)",
+        borderRadius: "18px 18px 18px 6px",
+        animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)",
+      }}
+    >
+      {streaming ? (
+        // Streaming: plain pre-wrap until finish so markdown doesn't flicker
+        <p className="text-sm leading-normal whitespace-pre-wrap break-words m-0" style={{ minHeight: "1.4em" }}>
+          {text}
+          <span
+            className="inline-block align-middle ml-[1px]"
+            style={{
+              width: 2,
+              height: "1em",
+              background: "var(--color-accent)",
+              opacity: 0.85,
+              animation: "caretBlink 0.9s ease infinite",
+            }}
+          />
+        </p>
+      ) : (
+        <AssistantMarkdown text={text} />
+      )}
     </div>
   );
 }
@@ -142,7 +126,7 @@ function ReasoningRow({
           : "пишет";
   return (
     <div
-      className="flex gap-2 items-start text-text-tertiary text-caption-1 leading-snug pl-9"
+      className="flex gap-2 items-start text-text-tertiary text-caption-1 leading-snug pl-1"
       style={{ animation: "fadeIn 0.2s ease" }}
       title={subkind}
     >
@@ -163,16 +147,16 @@ export function ChatPanel({
   memberId,
   memberName,
   initialItems,
-  hideHeader,
+  onClose,
 }: {
   conversationId: string;
   memberId: string;
   memberName: string;
   initialItems?: ChatStoredItem[];
-  hideHeader?: boolean;
+  onClose?: () => void;
 }) {
   const router = useRouter();
-  const { items, running, toolLabel, sendMessage, sendCommand } = useAguiStream(conversationId, {
+  const { items, running, sendMessage, sendCommand } = useAguiStream(conversationId, {
     memberId,
     initialItems,
     onMemberUpdated: () => router.refresh(),
@@ -186,21 +170,53 @@ export function ChatPanel({
     scrollDown(true);
   }, [items, running, scrollDown]);
 
+  // The panel stays mounted while CSS hides it (mobile drawer, collapsed
+  // column) and then has no height; jump to the latest message once shown.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let wasHidden = el.clientHeight === 0;
+    const ro = new ResizeObserver(() => {
+      const hidden = el.clientHeight === 0;
+      if (wasHidden && !hidden) el.scrollTop = el.scrollHeight;
+      wasHidden = hidden;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ── Typewriter ──────────────────────────────────────────────────────────
   const typewriter = useTypewriterText();
 
-  // Find the currently streaming assistant item
+  // Only a reply that arrived during the current run streams. Without this the
+  // previous answer is pulled down and re-typed while the new run (a message
+  // or a file upload) is still waiting for its first token. Snapshot the
+  // replies already on screen at the moment the run starts.
+  const seenAtRunStart = useRef<Set<string>>(new Set());
+  const wasRunning = useRef(false);
+  if (running && !wasRunning.current) {
+    seenAtRunStart.current = new Set(items.filter((i) => i.kind === "text").map((i) => i.id));
+  }
+  wasRunning.current = running;
   const streamingItem = running
-    ? (items.findLast((i) => i.kind === "text" && i.role === "assistant") ?? null)
+    ? (items.findLast(
+        (i) => i.kind === "text" && i.role === "assistant" && !seenAtRunStart.current.has(i.id),
+      ) ?? null)
     : null;
 
   const streamingText = streamingItem?.kind === "text" ? streamingItem.text : null;
+  const streamingId = streamingItem?.id ?? null;
+
+  // A new message within the run starts its typewriter from scratch.
+  useEffect(() => {
+    if (streamingId) typewriter.reset();
+  }, [streamingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (streamingText != null) {
       typewriter.update(streamingText);
     }
-  }, [streamingText]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [streamingText, streamingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!running && streamingText == null) {
@@ -230,6 +246,24 @@ export function ChatPanel({
     typewriter.reset();
     void sendMessage(text);
   };
+
+  // Questions asked from dashboard buttons («Спросить ассистента»).
+  const runningRef = useRef(running);
+  runningRef.current = running;
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail?.trim();
+      if (!text) return;
+      if (runningRef.current) {
+        setInput(text);
+        return;
+      }
+      typewriter.reset();
+      void sendMessage(text);
+    };
+    window.addEventListener(ASK_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_EVENT, onAsk);
+  }, [sendMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onTranscription = (text: string) => {
     setInput((prev) => (prev ? prev.trimEnd() + " " + text : text));
@@ -290,121 +324,81 @@ export function ChatPanel({
         @keyframes chatAttachSpin { to { transform: rotate(360deg); } }
       `}</style>
 
-      <section
-        className={`flex flex-col bg-bg-primary border-separator ${
-          hideHeader
-            ? "h-full"
-            : "w-full md:w-[400px] md:shrink-0 h-[85vh] md:h-screen border-t md:border-t-0 md:border-l"
-        }`}
-      >
+      <section className="flex flex-col h-full w-full min-h-0">
         {/* ── Header ── */}
-        {!hideHeader && (
-          <header
-            className="h-16 shrink-0 border-b border-separator px-4 flex items-center gap-3"
-            style={{ background: "var(--panel)" }}
+        <header className="shrink-0 flex items-center gap-3 px-5 pt-5 pb-4">
+          <span
+            className="w-10 h-10 rounded-full grid place-items-center shrink-0"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
           >
-            <span
-              className="w-8 h-8 rounded-full inline-flex items-center justify-center shrink-0"
-              style={{
-                background: "var(--accent-grad)",
-                boxShadow: "var(--shadow-accent)",
-              }}
+            <Sparkles size={18} strokeWidth={2.5} />
+          </span>
+          <span className="flex flex-col flex-1 min-w-0">
+            <span className="font-heading text-lg leading-tight">Ассистент</span>
+            <span className="text-xs text-muted truncate">о здоровье: {memberName.split(" ").slice(1).join(" ") || memberName}</span>
+          </span>
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="btn btn-ghost btn-icon"
+              title="Действия с диалогом"
             >
-              <Sparkles size={16} color="#fff" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-headline text-text-primary">Ассистент</div>
-              <div className="text-subheadline text-text-tertiary truncate">{memberName}</div>
-            </div>
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                className="h-9 w-9 inline-flex items-center justify-center rounded-full text-text-tertiary hover:text-accent hover:bg-accent-soft transition-colors"
-                title="Действия с диалогом"
-              >
-                <MoreHorizontal size={20} />
-              </button>
-              {menuOpen && (
-                <>
+              <MoreHorizontal size={18} strokeWidth={2.5} />
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div
+                  className="absolute right-0 top-11 z-20 w-60 rounded-[20px] p-1.5 animate-scale-in origin-top-right"
+                  style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-lg)" }}
+                >
                   <button
                     type="button"
-                    aria-hidden
-                    tabIndex={-1}
-                    className="fixed inset-0 z-10 cursor-default"
-                    onClick={() => setMenuOpen(false)}
-                  />
-                  <div
-                    className="absolute right-0 top-11 z-20 w-60 rounded-card border border-separator p-1 animate-scale-in origin-top-right"
-                    style={{
-                      background: "var(--panel)",
-                      boxShadow: "var(--shadow-modal)",
-                    }}
+                    onClick={compactContext}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-[14px] text-left hover:bg-[var(--color-neutral-200)] transition-colors"
                   >
-                    <button
-                      type="button"
-                      onClick={compactContext}
-                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-inner text-left hover:bg-accent-soft transition-colors"
-                    >
-                      <Archive size={18} className="text-text-secondary mt-0.5 shrink-0" />
-                      <span className="min-w-0">
-                        <span className="block text-callout text-text-primary">Сжать контекст</span>
-                        <span className="block text-caption-1 text-text-tertiary">/compact — Claude ужмёт историю</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearHistory}
-                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-inner text-left transition-colors"
-                      style={{ color: "var(--danger)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--danger-soft)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                    >
-                      <Trash2 size={18} className="mt-0.5 shrink-0" />
-                      <span className="min-w-0">
-                        <span className="block text-callout">Очистить историю</span>
-                        <span className="block text-caption-1 text-text-tertiary">Данные здоровья не затрагиваются</span>
-                      </span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </header>
-        )}
+                    <Archive size={18} className="text-muted mt-0.5 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block text-sm">Сжать контекст</span>
+                      <span className="block text-xs text-muted">/compact — Claude ужмёт историю</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearHistory}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-[14px] text-left transition-colors hover:bg-[var(--color-accent-100)]"
+                    style={{ color: "var(--color-accent-700)" }}
+                  >
+                    <Trash2 size={18} className="mt-0.5 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block text-sm">Очистить историю</span>
+                      <span className="block text-xs text-muted">Данные здоровья не затрагиваются</span>
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          {onClose && (
+            <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Скрыть">
+              <X size={18} strokeWidth={2.5} />
+            </button>
+          )}
+        </header>
 
         {/* ── Message list ── */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 pt-1 pb-5 flex flex-col gap-3.5">
           {isEmpty ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <span
-                className="w-14 h-14 rounded-full inline-flex items-center justify-center"
-                style={{
-                  background: "var(--accent-grad)",
-                  boxShadow: "var(--shadow-accent)",
-                }}
-              >
-                <Sparkles size={22} color="#fff" strokeWidth={1.8} />
-              </span>
-              <p className="text-callout text-text-tertiary mt-4">
-                Задайте вопрос об анализах {memberName.split(" ")[0]} или загрузите документ
-              </p>
-              <div className="flex flex-col gap-2 mt-5 w-full">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => void sendMessage(s)}
-                    className="text-subheadline text-text-secondary rounded-pill px-4 py-2 shadow-soft hover:border-accent-line hover:text-accent-ink hover:bg-accent-soft transition-all text-left"
-                    style={{
-                      border: "1px solid var(--color-separator)",
-                      background: "var(--panel)",
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+            <div className="my-auto flex flex-col gap-2.5 items-start pt-10">
+              <span className="font-heading text-[22px] leading-tight">Спросите про анализы или загрузите документ</span>
+              <span className="text-sm text-muted">Я объясню результаты простыми словами и подскажу, что пересдать.</span>
             </div>
           ) : (
             <>
@@ -414,10 +408,16 @@ export function ChatPanel({
                 }
                 if (item.kind === "widget") {
                   return (
-                    <div key={item.id} style={{ animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)" }}>
-                      <div className="text-caption-2 uppercase tracking-wide text-text-tertiary mb-1.5 ml-1">
-                        AI-виджет
-                      </div>
+                    <div
+                      key={item.id}
+                      style={
+                        {
+                          animation: "msgIn 0.3s cubic-bezier(0.16,1,0.3,1)",
+                          // widget cards sit on the cream ground, as in the mockup
+                          "--color-bg-secondary": "var(--color-bg)",
+                        } as React.CSSProperties
+                      }
+                    >
                       <WidgetRenderer widgetType={item.widgetType} props={item.props} />
                     </div>
                   );
@@ -449,10 +449,24 @@ export function ChatPanel({
         </div>
 
         {/* ── Input area ── */}
-        <div
-          className="shrink-0 border-t border-separator px-3 py-3"
-          style={{ background: "var(--panel)" }}
-        >
+        <div className="shrink-0 px-5 pt-3 pb-5 flex flex-col gap-2.5">
+          {!running && (
+            <div className="flex gap-1.5 flex-wrap">
+              {SUGGESTIONS.slice(isEmpty ? 0 : 1).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    typewriter.reset();
+                    void sendMessage(s);
+                  }}
+                  className="btn btn-secondary text-xs px-3 py-1.5"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
           <input
             ref={fileRef}
             type="file"
@@ -462,32 +476,22 @@ export function ChatPanel({
             onChange={(e) => void upload(e.target.files)}
           />
           <div
-            className="flex items-end gap-1 rounded-[22px] px-3 py-1 transition-all duration-200"
-            style={{
-              border: "1.5px solid var(--color-separator)",
-              background: "var(--color-bg-primary)",
-            }}
-            onFocus={(e) => {
-              if (e.currentTarget.contains(e.target))
-                e.currentTarget.style.borderColor = "var(--accent-line)";
-            }}
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node))
-                e.currentTarget.style.borderColor = "var(--color-separator)";
-            }}
+            className="flex items-end gap-1.5 rounded-[22px] pl-2 pr-1.5 py-1.5 transition-shadow duration-200 focus-within:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            style={{ background: "var(--color-bg)", boxShadow: "inset 0 0 0 1px var(--color-divider)" }}
           >
             {/* Attach */}
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading || running}
-              className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-full text-text-tertiary hover:text-accent hover:bg-accent-soft transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-tertiary"
+              className="btn btn-ghost btn-icon shrink-0"
               title="Загрузить документ"
+              aria-label="Прикрепить"
             >
               {uploading ? (
-                <Loader2 size={18} style={{ animation: "chatAttachSpin 0.8s linear infinite" }} />
+                <Loader2 size={17} style={{ animation: "chatAttachSpin 0.8s linear infinite" }} />
               ) : (
-                <Paperclip size={18} />
+                <Paperclip size={17} strokeWidth={2.5} />
               )}
             </button>
 
@@ -500,27 +504,23 @@ export function ChatPanel({
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
               }}
               rows={1}
-              placeholder="Спросите про анализы…"
-              className="flex-1 bg-transparent text-callout text-text-primary placeholder:text-text-tertiary outline-none py-2.5 resize-none"
-              style={{ maxHeight: 200, fontSize: 16 /* prevents iOS zoom */ }}
+              placeholder="Спросите ассистента…"
+              className="flex-1 min-w-0 bg-transparent outline-none py-[7px] resize-none placeholder:text-[var(--color-neutral-600)]"
+              style={{ maxHeight: 200, fontSize: 16 /* prevents iOS zoom */, color: "inherit" }}
             />
 
             {/* Mic */}
             <MicButton onTranscription={onTranscription} />
 
-            {/* Send — accent-grad с glow, как в bender */}
+            {/* Send */}
             <button
               type="button"
               onClick={send}
               disabled={!input.trim() || running}
-              className="h-9 w-9 shrink-0 rounded-full inline-flex items-center justify-center transition-all duration-150 mb-0.5 disabled:opacity-40 disabled:shadow-none"
-              style={{
-                background: input.trim() && !running ? "var(--accent-grad)" : "var(--color-fill-quaternary)",
-                color: input.trim() && !running ? "#fff" : "var(--color-text-tertiary)",
-                boxShadow: input.trim() && !running ? "var(--shadow-accent)" : "none",
-              }}
+              className="btn btn-primary btn-icon shrink-0"
+              aria-label="Отправить"
             >
-              <ArrowUp size={18} />
+              <ArrowUp size={17} strokeWidth={2.5} />
             </button>
           </div>
         </div>

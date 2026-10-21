@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, Settings2 } from "lucide-react";
 import type { FamilyMember } from "@/lib/types";
-import { accentVar, initials, tint } from "@/lib/ui";
+import { accentVar, initials } from "@/lib/ui";
 
 export function BottomNav({
   members,
@@ -30,8 +30,8 @@ export function BottomNav({
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-stretch bg-bg-secondary border-t border-separator"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-stretch"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", background: "var(--color-surface)", boxShadow: "0 -1px 0 var(--color-divider)" }}
     >
       {members.map((m) => {
         const active = m.id === activeId && !chatOpen && !isSettings;
@@ -53,18 +53,15 @@ export function BottomNav({
                 width: 34,
                 height: 34,
                 fontSize: 12,
-                background: active
-                  ? `linear-gradient(135deg, ${color}, ${tint(color, 60)})`
-                  : "var(--color-fill-quaternary)",
-                color: active ? "#fff" : "var(--color-text-tertiary)",
-                boxShadow: active ? `0 2px 10px ${color}44` : "none",
+                background: active ? color : "var(--color-neutral-300)",
+                color: active ? "var(--color-neutral-100)" : "var(--color-neutral-700)",
               }}
             >
               {initials(m.name)}
             </span>
             <span
               className="text-[10px] font-medium truncate max-w-[60px] leading-tight"
-              style={{ color: active ? color : "var(--color-text-tertiary)" }}
+              style={{ color: active ? "var(--color-text)" : "var(--color-neutral-700)", fontWeight: active ? 700 : 500 }}
             >
               {m.name.split(" ")[0]}
             </span>
@@ -86,17 +83,17 @@ export function BottomNav({
           style={{
             width: 34,
             height: 34,
-            background: isSettings ? "rgba(255,149,0,0.15)" : "var(--color-fill-quaternary)",
+            background: isSettings ? "var(--color-accent-2-200)" : "var(--color-neutral-300)",
           }}
         >
           <Settings2
             size={16}
-            style={{ color: isSettings ? "#ff9500" : "var(--color-text-tertiary)" }}
+            style={{ color: isSettings ? "var(--color-accent-2-800)" : "var(--color-neutral-700)" }}
           />
         </span>
         <span
           className="text-[10px] font-medium leading-tight"
-          style={{ color: isSettings ? "#ff9500" : "var(--color-text-tertiary)" }}
+          style={{ color: isSettings ? "var(--color-accent-2-800)" : "var(--color-neutral-700)" }}
         >
           Устройства
         </span>
@@ -113,18 +110,17 @@ export function BottomNav({
           style={{
             width: 34,
             height: 34,
-            background: chatOpen ? "var(--color-brand)" : "var(--color-fill-quaternary)",
-            boxShadow: chatOpen ? "0 2px 10px rgba(0,122,255,0.35)" : "none",
+            background: chatOpen ? "var(--color-accent)" : "var(--color-accent-200)",
           }}
         >
           <Sparkles
             size={16}
-            style={{ color: chatOpen ? "#fff" : "var(--color-text-tertiary)" }}
+            style={{ color: chatOpen ? "var(--color-bg)" : "var(--color-accent-800)" }}
           />
         </span>
         <span
           className="text-[10px] font-medium leading-tight"
-          style={{ color: chatOpen ? "var(--color-brand)" : "var(--color-text-tertiary)" }}
+          style={{ color: chatOpen ? "var(--color-accent-700)" : "var(--color-neutral-700)" }}
         >
           Ассистент
         </span>

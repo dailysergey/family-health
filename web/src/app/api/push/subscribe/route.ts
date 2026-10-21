@@ -16,7 +16,7 @@ function saveSubs(subs: Record<string, unknown>[]) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { subscription, memberId = "primary", action = "subscribe" } = body as {
+    const { subscription, memberId = "sergey", action = "subscribe" } = body as {
       subscription: Record<string, unknown>;
       memberId?: string;
       action?: "subscribe" | "unsubscribe";

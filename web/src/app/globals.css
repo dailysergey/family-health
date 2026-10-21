@@ -3,160 +3,231 @@
 @tailwind utilities;
 
 /*
- * Палитра «Halo» (тёплый терракотовый акцент на бежевом фоне) —
- * та же, что у bender-стека (wiki/tasks/books). Имена переменных остаются
- * прежними, чтобы Tailwind-токены и все существующие компоненты продолжали
- * работать; меняются только значения. Health-domain accents и status-цвета
- * оставлены семантическими (Apple Health inspired) — они выражают смысл,
- * а не бренд, и цветовое кодирование метрик менять нельзя.
+ * Дизайн-система «Organic» (макет «Здоровье семьи», claude.ai/design):
+ * кремовый фон, терракотовый акцент, шалфейный второй акцент, мягкие
+ * скругления. Источник истины — тональные шкалы --color-{neutral,accent,
+ * accent-2}-100…900. Старые имена переменных (--color-bg-primary, --accent,
+ * --color-status-* …) сохранены и выражены через шкалы, чтобы виджеты чата
+ * и прочие компоненты перекрасились без правок.
+ * Тёмная тема — зеркальный разворот шкал: 100 ↔ 900.
  */
 
 :root {
-  /* ── Bender accent (light) ─────────────────────────────────────────────── */
-  --accent: #C05A39;
-  --accent-rgb: 192, 90, 57;
-  --accent-ink: #A8492A;
-  --accent-deep: #9E4527;
-  --accent-grad: linear-gradient(135deg, #D9824F, #C05A39);
-  --accent-soft: rgba(192, 90, 57, 0.10);
-  --accent-line: rgba(192, 90, 57, 0.18);
-  --aura: rgba(192, 90, 57, 0.09);
+  --color-bg: #f5ead8;
+  --color-surface: #ebddc5;
+  --color-text: #201e1d;
+  --color-accent: #c67139;
+  --color-accent-2: #7a8a5e;
+  --color-divider: color-mix(in srgb, var(--color-text) 16%, transparent);
 
-  /* Backgrounds — тёплый беж вместо холодного iOS-серого */
-  --color-bg-primary: #FBFAF8;
-  --color-bg-secondary: #FFFFFF;
-  --color-bg-tertiary: #F4F3F0;
-  --color-bg-elevated: #FFFFFF;
+  --color-neutral-100: #f9f4ed;
+  --color-neutral-200: #eee7db;
+  --color-neutral-300: #dcd3c4;
+  --color-neutral-400: #c0b6a5;
+  --color-neutral-500: #a19786;
+  --color-neutral-600: #82796a;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #474238;
+  --color-neutral-900: #2e2b25;
 
-  /* Separators & Fills */
-  --color-separator: rgba(0, 0, 0, 0.10);
-  --color-fill-quaternary: #E8E5E0;
+  --color-accent-100: #fff2eb;
+  --color-accent-200: #ffe1d0;
+  --color-accent-300: #ffc6a5;
+  --color-accent-400: #f6a06b;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #b2622d;
+  --color-accent-700: #8c491a;
+  --color-accent-800: #643312;
+  --color-accent-900: #402310;
 
-  /* Text — bender-иерархия оттенков */
-  --color-text-primary: #1A1A1F;
-  --color-text-secondary: #56565E;
-  --color-text-tertiary: #9C9CA4;
-  --color-text-quaternary: #A8A8AF;
-  --color-text-on-accent: #FFFFFF;
+  --color-accent-2-100: #f0fae1;
+  --color-accent-2-200: #e1eecc;
+  --color-accent-2-300: #ccdbb2;
+  --color-accent-2-400: #aebf92;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #728157;
+  --color-accent-2-700: #56633f;
+  --color-accent-2-800: #3d472b;
+  --color-accent-2-900: #272e1b;
 
-  /* Health Domain Accents — семантические, менять нельзя */
-  --color-activity: #ff375f;
-  --color-heart: #ff3a30;
-  --color-mindfulness: #32ade6;
-  --color-nutrition: #34c759;
-  --color-sleep: #5e5ce6;
-  --color-medications: #007aff;
-  --color-body: #ff9500;
-  --color-labs: #af52de;
-  --color-reproductive: #ff2d55;
-  --color-hearing: #30b0c7;
+  /* Caprasimo/Figtree без кириллицы → кириллица уходит в Yeseva One/Manrope */
+  --font-heading: var(--font-caprasimo), var(--font-yeseva), Georgia, serif;
+  --font-body: var(--font-manrope), system-ui, sans-serif;
 
-  /* Status — семантика lab-результатов, менять нельзя */
-  --color-status-normal: #34c759;
-  --color-status-high: #ff3a30;
-  --color-status-low: #007aff;
-  --color-status-borderline: #ff9500;
-  --color-status-critical: #ff2d55;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
 
-  /* Brand — теперь это терракота, а не iOS-blue */
-  --color-brand: var(--accent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
 
-  /* Shadows — тёплые тени bender'а вместо холодных iOS */
-  --shadow-card: 0 14px 36px -16px rgba(80, 50, 35, 0.26);
-  --shadow-card-hover: 0 20px 48px -18px rgba(80, 50, 35, 0.32);
-  --shadow-modal: 0 40px 90px -22px rgba(50, 40, 34, 0.40);
-  --shadow-accent: 0 8px 20px -6px rgba(192, 90, 57, 0.55);
-  --shadow-soft: 0 1px 3px rgba(80, 50, 35, 0.06);
+  /* ── Legacy-имена → Organic ─────────────────────────────────────────── */
+  --accent: var(--color-accent);
+  --accent-rgb: 198, 113, 57;
+  --accent-ink: var(--color-accent-700);
+  --accent-deep: var(--color-accent-800);
+  --accent-grad: var(--color-accent);
+  --accent-soft: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --accent-line: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --aura: color-mix(in srgb, var(--color-accent) 9%, transparent);
 
-  /* Radii — семейство bender + сохранённые health-имена */
-  --radius-card: 14px;
-  --radius-inner: 11px;
-  --radius-chip: 9px;
-  --r-pill: 20px;
+  --color-bg-primary: var(--color-bg);
+  --color-bg-secondary: var(--color-neutral-100);
+  --color-bg-tertiary: var(--color-neutral-200);
+  --color-bg-elevated: var(--color-neutral-100);
 
-  /* Card / user-bubble градиенты (для чат-панели) */
-  --card-grad: linear-gradient(180deg, #FCFAF7, #FAF6F2);
-  --user-bg: linear-gradient(180deg, #FCFAF7, #FAF6F2);
-  --panel: #FFFFFF;
-  --surface: #E8E5E0;
+  --color-separator: var(--color-divider);
+  --color-fill-quaternary: var(--color-neutral-300);
+  --color-fill-tertiary: var(--color-neutral-300);
 
-  /* Прочие bender-переменные, которые могут пригодиться компонентам */
-  --sel: rgba(192, 90, 57, 0.16);
-  --code-bg: #F4F1EC;
-  --code-text: #3A3936;
-  --danger: #C0454A;
-  --danger-soft: rgba(229, 72, 77, 0.08);
-  --danger-line: rgba(229, 72, 77, 0.20);
-  --overlay: rgba(40, 32, 28, 0.30);
-  --sb-thumb: rgba(0, 0, 0, 0.18);
-  --sb-thumb-hover: rgba(0, 0, 0, 0.32);
+  --color-text-primary: var(--color-text);
+  --color-text-secondary: var(--color-neutral-800);
+  --color-text-tertiary: var(--color-neutral-700);
+  --color-text-quaternary: var(--color-neutral-500);
+  --color-text-on-accent: var(--color-bg);
+
+  /* Домены метрик — приглушённые земляные тона вместо iOS-неона */
+  --color-activity: var(--color-accent-500);
+  --color-heart: var(--color-accent-700);
+  --color-mindfulness: var(--color-accent-2-400);
+  --color-nutrition: var(--color-accent-2-600);
+  --color-sleep: var(--color-accent-2-800);
+  --color-medications: var(--color-accent-600);
+  --color-body: var(--color-accent-400);
+  --color-labs: var(--color-neutral-700);
+  --color-reproductive: var(--color-accent-300);
+  --color-hearing: var(--color-accent-2-500);
+
+  /* Статусы анализов: норма — шалфей, граница — светлая терракота, вне — тёмная */
+  --color-status-normal: var(--color-accent-2-600);
+  --color-status-high: var(--color-accent-700);
+  --color-status-low: var(--color-accent-700);
+  --color-status-borderline: var(--color-accent-400);
+  --color-status-critical: var(--color-accent-900);
+
+  --color-brand: var(--color-accent);
+
+  --shadow-card: var(--shadow-sm);
+  --shadow-card-hover: var(--shadow-md);
+  --shadow-modal: var(--shadow-lg);
+  --shadow-accent: var(--shadow-sm);
+  --shadow-soft: var(--shadow-sm);
+
+  --radius-card: var(--radius-lg);
+  --radius-inner: var(--radius-md);
+  --radius-chip: 12px;
+  --r-pill: 999px;
+
+  --card-grad: var(--color-neutral-100);
+  --user-bg: var(--color-accent);
+  --panel: var(--color-neutral-100);
+  --surface: var(--color-surface);
+
+  --sel: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --code-bg: var(--color-neutral-200);
+  --code-text: var(--color-neutral-900);
+  --danger: var(--color-accent-700);
+  --danger-soft: var(--color-accent-100);
+  --danger-line: var(--color-accent-300);
+  --overlay: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  --sb-thumb: color-mix(in srgb, var(--color-text) 18%, transparent);
+  --sb-thumb-hover: color-mix(in srgb, var(--color-text) 32%, transparent);
 }
 
 .dark {
-  /* ── Bender accent (dark) ──────────────────────────────────────────────── */
-  --accent: #DB8456;
-  --accent-rgb: 219, 132, 86;
-  --accent-ink: #E6A079;
-  --accent-deep: #EAB293;
-  --accent-grad: linear-gradient(135deg, #E0904F, #C86038);
-  --accent-soft: rgba(219, 132, 86, 0.16);
-  --accent-line: rgba(219, 132, 86, 0.30);
-  --aura: rgba(219, 132, 86, 0.10);
+  --color-bg: #1d1b18;
+  --color-surface: #26231f;
+  --color-text: #f2e9da;
+  --color-accent: #d98a55;
+  --color-accent-2: #9fb07f;
 
-  --color-bg-primary: #16151A;
-  --color-bg-secondary: #1C1B21;
-  --color-bg-tertiary: #26242B;
-  --color-bg-elevated: #332F39;
+  --color-neutral-100: #2a2722;
+  --color-neutral-200: #34302a;
+  --color-neutral-300: #474238;
+  --color-neutral-400: #645c50;
+  --color-neutral-500: #82796a;
+  --color-neutral-600: #a19786;
+  --color-neutral-700: #b9af9e;
+  --color-neutral-800: #d6ccbc;
+  --color-neutral-900: #eee7db;
 
-  --color-separator: rgba(255, 255, 255, 0.12);
-  --color-fill-quaternary: #2D2A32;
+  --color-accent-100: #3a2416;
+  --color-accent-200: #4d2e18;
+  --color-accent-300: #74401c;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #e8935d;
+  --color-accent-700: #f6a06b;
+  --color-accent-800: #ffc6a5;
+  --color-accent-900: #ffe1d0;
 
-  --color-text-primary: #F4F1ED;
-  --color-text-secondary: #B6B1A9;
-  --color-text-tertiary: #837E76;
-  --color-text-quaternary: #756F67;
-  --color-text-on-accent: #FFFFFF;
+  --color-accent-2-100: #262c1c;
+  --color-accent-2-200: #313a24;
+  --color-accent-2-300: #4a5634;
+  --color-accent-2-400: #637249;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a5b689;
+  --color-accent-2-700: #bccba0;
+  --color-accent-2-800: #d4e2bb;
+  --color-accent-2-900: #e8f3d6;
 
-  /* Health-domain — тёмная версия семантических цветов */
-  --color-activity: #ff6b81;
-  --color-heart: #ff6259;
-  --color-mindfulness: #5ac8fa;
-  --color-nutrition: #30d158;
-  --color-sleep: #7d7aff;
-  --color-medications: #0a84ff;
-  --color-body: #ff9f0a;
-  --color-labs: #bf5af2;
-  --color-reproductive: #ff375f;
-  --color-hearing: #40cbe0;
+  --shadow-sm: 0 0 0 1px color-mix(in srgb, #fff 6%, transparent), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 0 0 1px color-mix(in srgb, #fff 6%, transparent), 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 0 0 1px color-mix(in srgb, #fff 7%, transparent), 0 14px 36px rgba(0, 0, 0, 0.55);
+}
 
-  --color-status-normal: #30d158;
-  --color-status-high: #ff6259;
-  --color-status-low: #0a84ff;
-  --color-status-borderline: #ff9f0a;
-  --color-status-critical: #ff375f;
+/* ── Organic: компонентные классы из макета ─────────────────────────────── */
+@layer components {
+  .font-heading { font-family: var(--font-heading); font-weight: 400; letter-spacing: -0.01em; }
+  .text-muted { color: var(--color-neutral-700); }
 
-  --color-brand: var(--accent);
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+    font-family: var(--font-heading); font-weight: 400; font-size: 14px; line-height: 1.2;
+    color: var(--color-text); background: transparent; border: 1px solid transparent;
+    padding: 8.8px 16px; border-radius: 999px;
+    transition: background-color 150ms, color 150ms, border-color 150ms;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--color-accent); color: var(--color-bg); }
+  .btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
+  .btn-primary:active:not(:disabled) { background: var(--color-accent-700); }
+  .btn-secondary { border-color: var(--color-divider); }
+  .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+  .btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+  .btn-ghost { color: var(--color-accent-700); padding-inline: 8px; }
+  .btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+  .btn-ghost:active:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+  .btn-icon { width: 36px; height: 36px; padding: 0; }
 
-  --shadow-card: 0 16px 40px -18px rgba(0, 0, 0, 0.60);
-  --shadow-card-hover: 0 24px 56px -20px rgba(0, 0, 0, 0.68);
-  --shadow-modal: 0 40px 90px -22px rgba(0, 0, 0, 0.70);
-  --shadow-accent: 0 8px 20px -6px rgba(219, 132, 86, 0.45);
-  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.30);
+  .tag {
+    display: inline-flex; align-items: center; font-size: 11px; line-height: 1.4;
+    letter-spacing: 0.02em; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+  .tag-accent-strong { background: var(--color-accent-200); color: var(--color-accent-900); }
+  .tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+  .tag-neutral { background: var(--color-neutral-200); color: var(--color-neutral-800); }
 
-  --card-grad: linear-gradient(180deg, #221F26, #1C1A20);
-  --user-bg: linear-gradient(180deg, #232027, #1C1A20);
-  --panel: #1C1B21;
-  --surface: #332F39;
+  .seg {
+    display: inline-flex; overflow: hidden; flex: none; max-width: 100%; overflow-x: auto;
+    border: 1px solid var(--color-divider); border-radius: 999px;
+  }
+  .seg-opt {
+    display: inline-flex; align-items: center; padding: 7px 12px; font-size: 13px;
+    cursor: pointer; white-space: nowrap; background: transparent; border: 0; color: inherit; font-family: inherit;
+  }
+  .seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+  .seg-opt[aria-pressed="true"] { background: var(--color-accent); color: var(--color-bg); }
+  .seg-opt:not([aria-pressed="true"]):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 
-  --sel: rgba(219, 132, 86, 0.24);
-  --code-bg: #14131A;
-  --code-text: #D6D1C9;
-  --danger: #E66A6E;
-  --danger-soft: rgba(229, 72, 77, 0.16);
-  --danger-line: rgba(229, 72, 77, 0.32);
-  --overlay: rgba(0, 0, 0, 0.60);
-  --sb-thumb: rgba(255, 255, 255, 0.20);
-  --sb-thumb-hover: rgba(255, 255, 255, 0.34);
+  /* Карточка макета: светлый «лист» на кремовом фоне */
+  .o-card {
+    background: var(--color-neutral-100); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  }
+  .o-h2 { font-family: var(--font-heading); font-weight: 400; font-size: 28px; line-height: 1.12; margin: 0; }
 }
 
 html,
@@ -164,9 +235,16 @@ body {
   height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* iOS safe area support */
@@ -222,7 +300,8 @@ body {
 .markdown h1,
 .markdown h2,
 .markdown h3 {
-  font-weight: 600;
+  font-family: var(--font-heading);
+  font-weight: 400;
   margin: 0.6em 0 0.3em;
 }
 .markdown a {

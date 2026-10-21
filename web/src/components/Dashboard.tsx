@@ -1,135 +1,129 @@
-import type { MemberBundle } from "@/lib/types";
-import { ageLabel, groupLabs } from "@/lib/ui";
-import { LabGroup } from "@/components/LabGroup";
-import { DiagnosisCard } from "@/components/widgets/DiagnosisCard";
-import { TrendChartCard } from "@/components/widgets/TrendChartCard";
-import { MetricRing } from "@/components/widgets/MetricRing";
-import { WearablesCard } from "@/components/widgets/WearablesCard";
-import { WhoopDashboard } from "@/components/widgets/WhoopDashboard";
-import { OuraContributors } from "@/components/widgets/OuraContributors";
-import { FitnessSection } from "@/components/FitnessSection";
-import { DocumentList } from "@/components/DocumentList";
-import { UploadDropzone } from "@/components/UploadDropzone";
+"use client";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mt-8 first:mt-0">
-      <h2 className="text-title-1 text-text-primary mb-4">{title}</h2>
-      {children}
-    </section>
-  );
+import { useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
+import type { MemberBundle } from "@/lib/types";
+import { accentVar, ageLabel, initials } from "@/lib/ui";
+import { dmy } from "@/lib/labs";
+import { TrendChartCard } from "@/components/widgets/TrendChartCard";
+import { FitnessSection } from "@/components/FitnessSection";
+import { Overview } from "@/components/dashboard/Overview";
+import { TodaySection } from "@/components/dashboard/TodaySection";
+import { LabsSection } from "@/components/dashboard/LabsSection";
+import { NutritionSection } from "@/components/dashboard/NutritionSection";
+import { DiagnosesSection } from "@/components/dashboard/DiagnosesSection";
+import { DocumentsSection, type DocumentsHandle } from "@/components/dashboard/DocumentsSection";
+import { Section } from "@/components/dashboard/primitives";
+
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-export function Dashboard({ bundle, conversationId }: { bundle: MemberBundle; conversationId: string }) {
+export function Dashboard({
+  bundle,
+  conversationId,
+  assistantButtonClass,
+  onOpenAssistant,
+}: {
+  bundle: MemberBundle;
+  conversationId: string;
+  /** Responsive visibility of the «Ассистент» button (shown while the chat column is hidden). */
+  assistantButtonClass?: string;
+  onOpenAssistant?: () => void;
+}) {
   const { member, diagnoses, labs, metrics, documents } = bundle;
-  const activeDx = diagnoses.filter((d) => d.status === "active");
-  const normal = labs.filter((l) => l.status === "normal").length;
-  const normalPct = labs.length ? Math.round((normal / labs.length) * 100) : 0;
-  const attention = labs.filter((l) => l.status !== "normal").length;
+  const [selectedLab, setSelectedLab] = useState<string | null>(null);
+  const docsRef = useRef<DocumentsHandle>(null);
+  const hasWearables = !!member.wearables?.enabled;
+  const hasData = labs.length > 0 || diagnoses.length > 0;
+
+  const updated = [...labs.map((l) => l.date), ...documents.map((d) => d.addedAt)].sort().pop();
+  const meta = [member.relation, ageLabel(member.birthDate)].filter(Boolean).join(" · ");
+
+  const nav = [
+    { id: "today", label: "Сегодня", show: true },
+    { id: "labs", label: "Анализы", show: true },
+    { id: "dynamics", label: "Динамика", show: metrics.length > 0 },
+    { id: "meals", label: "Питание", show: true },
+    { id: "diagnoses", label: "Диагнозы", show: diagnoses.length > 0 },
+    { id: "docs", label: "Документы", show: true },
+  ].filter((n) => n.show);
+
+  const pickLab = (id: string) => {
+    setSelectedLab(id);
+    scrollToId("labs");
+  };
 
   return (
     <main className="flex-1 min-w-0 md:h-screen md:overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        <header className="mb-6">
-          <h1 className="text-large-title text-text-primary">{member.name}</h1>
-          <p className="text-callout text-text-secondary mt-1">
-            {[member.relation, ageLabel(member.birthDate)].filter(Boolean).join(" · ")}
-          </p>
+      <div id="dashboard-top" className="h-px" aria-hidden />
+      <div className="max-w-[1040px] px-[18px] sm:px-[clamp(18px,3vw,40px)] pt-8 pb-20 flex flex-col gap-10">
+        <header className="flex flex-col gap-[18px]">
+          <div className="flex items-center gap-[18px] flex-wrap">
+            <span
+              className="w-16 h-16 rounded-full grid place-items-center font-bold text-[22px] shrink-0"
+              style={{ background: accentVar(member.accent), color: "var(--color-neutral-100)" }}
+            >
+              {initials(member.name)}
+            </span>
+            <div className="flex flex-col gap-1 flex-1 min-w-[220px]">
+              <h1 className="font-heading text-[30px] sm:text-[38px] leading-[1.05] m-0">{member.name}</h1>
+              <span className="text-sm text-muted">
+                {meta}
+                {hasData && updated ? ` · данные от ${dmy(updated)}` : hasData ? "" : " · данных пока нет"}
+              </span>
+            </div>
+            {onOpenAssistant && (
+              <button type="button" className={`btn btn-primary gap-2 ${assistantButtonClass ?? ""}`} onClick={onOpenAssistant}>
+                <Sparkles size={16} strokeWidth={2.5} />
+                Ассистент
+              </button>
+            )}
+          </div>
+          <nav className="flex gap-2 flex-wrap">
+            {nav.map((n) => (
+              <button key={n.id} type="button" className="btn btn-secondary text-[13px] px-4 py-[7px]" onClick={() => scrollToId(n.id)}>
+                {n.label}
+              </button>
+            ))}
+          </nav>
         </header>
 
-        {/* Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <MetricRing
-            label="Анализы в норме"
-            value={`${normalPct}%`}
-            percent={normalPct}
-            category="nutrition"
-            caption={`${normal} из ${labs.length}`}
-            size={104}
-          />
-          <div className="bg-bg-secondary rounded-card shadow-card p-5 flex flex-col justify-center">
-            <div className="text-large-title tabular text-text-primary">{activeDx.length}</div>
-            <div className="text-callout text-text-secondary mt-1">Активных диагнозов</div>
-          </div>
-          <div className="bg-bg-secondary rounded-card shadow-card p-5 flex flex-col justify-center">
-            <div className="text-large-title tabular" style={{ color: attention ? "var(--color-status-high)" : "var(--color-status-normal)" }}>
-              {attention}
-            </div>
-            <div className="text-callout text-text-secondary mt-1">Требуют внимания</div>
-          </div>
-        </div>
+        {hasData && <Overview labs={labs} diagnoses={diagnoses} onPickLab={pickLab} />}
 
-        {member.wearables?.enabled && (
-          <Section title="Сегодня">
-            <WhoopDashboard memberId={member.id} />
-          </Section>
-        )}
+        <TodaySection
+          memberId={member.id}
+          enabled={hasWearables}
+          device={member.wearables?.device}
+          extra={hasWearables ? <FitnessSection memberId={member.id} /> : undefined}
+        />
 
-        {member.wearables?.enabled && (
-          <Section title="Готовность">
-            <OuraContributors memberId={member.id} />
-          </Section>
-        )}
-
-        {member.wearables?.enabled && (
-          <Section title="Носимое устройство">
-            <WearablesCard memberId={member.id} />
-          </Section>
-        )}
-
-        {member.wearables?.enabled && (
-          <Section title="Фитнес">
-            <FitnessSection memberId={member.id} />
-          </Section>
-        )}
-
-        {diagnoses.length > 0 && (
-          <Section title="Диагнозы">
-            <div className="space-y-4">
-              {diagnoses.map((d) => (
-                <DiagnosisCard key={d.id} {...d} />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {labs.length > 0 && (
-          <Section title="Анализы и обследования">
-            <div className="space-y-2">
-              {groupLabs(labs).map((g) => (
-                <LabGroup key={g.title} title={g.title} labs={g.labs} />
-              ))}
-            </div>
-          </Section>
-        )}
+        <LabsSection
+          labs={labs}
+          selectedId={selectedLab}
+          onSelect={setSelectedLab}
+          onUpload={() => docsRef.current?.pickFiles()}
+        />
 
         {metrics.length > 0 && (
-          <Section title="Динамика">
+          <Section id="dynamics" title="Динамика">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {metrics.map((m) => {
                 const delta =
                   m.series.length >= 2 ? m.series[m.series.length - 1].value - m.series[m.series.length - 2].value : undefined;
                 return (
-                  <TrendChartCard
-                    key={m.id}
-                    title={m.name}
-                    unit={m.unit}
-                    category={m.category}
-                    data={m.series}
-                    delta={delta}
-                  />
+                  <TrendChartCard key={m.id} title={m.name} unit={m.unit} category={m.category} data={m.series} delta={delta} />
                 );
               })}
             </div>
           </Section>
         )}
 
-        <Section title="Документы">
-          <div className="space-y-4">
-            <UploadDropzone memberId={member.id} conversationId={conversationId} />
-            <DocumentList documents={documents} memberId={member.id} />
-          </div>
-        </Section>
+        <NutritionSection memberId={member.id} />
+
+        <DiagnosesSection diagnoses={diagnoses} />
+
+        <DocumentsSection ref={docsRef} documents={documents} memberId={member.id} conversationId={conversationId} />
       </div>
     </main>
   );

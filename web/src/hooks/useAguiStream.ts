@@ -18,6 +18,29 @@ function fromStored(s: ChatStoredItem): ChatItem {
     : { id: s.id, kind: "text", role: s.role, text: s.text };
 }
 
+/**
+ * Merge the persisted transcript into live state. The server copy is the
+ * source of truth; live-only items (reasoning rows, a reply still streaming,
+ * events that raced the fetch) stay right after the item they followed.
+ */
+function mergeHistory(live: ChatItem[], stored: ChatStoredItem[]): ChatItem[] {
+  const storedIds = new Set(stored.map((s) => s.id));
+  const after = new Map<string | null, ChatItem[]>();
+  let anchor: string | null = null;
+  for (const i of live) {
+    if (storedIds.has(i.id)) {
+      anchor = i.id;
+      continue;
+    }
+    const list = after.get(anchor) ?? [];
+    list.push(i);
+    after.set(anchor, list);
+  }
+  const out: ChatItem[] = [...(after.get(null) ?? [])];
+  for (const s of stored) out.push(fromStored(s), ...(after.get(s.id) ?? []));
+  return out;
+}
+
 interface Envelope {
   type: string;
   conversationId: string;
@@ -53,12 +76,30 @@ export function useAguiStream(
   const onMemberUpdated = useRef(opts.onMemberUpdated);
   onMemberUpdated.current = opts.onMemberUpdated;
 
+  const memberId = opts.memberId;
+
   useEffect(() => {
     setRunning(false);
     setToolLabel(null);
-    const es = new EventSource(`/api/events?conversationId=${encodeURIComponent(conversationId)}`);
+    let disposed = false;
+    let es: EventSource;
 
-    es.onmessage = (e) => {
+    // Catch up on whatever happened while we were not listening: the panel
+    // was unmounted (mobile drawer), the tab was in background, or the stream
+    // dropped. SSE has no replay, so re-read the persisted transcript.
+    const resync = async () => {
+      if (!memberId) return;
+      try {
+        const res = await fetch(`/api/chat?memberId=${encodeURIComponent(memberId)}`, { cache: "no-store" });
+        if (!res.ok || disposed) return;
+        const stored = (await res.json()) as ChatStoredItem[];
+        if (!disposed && Array.isArray(stored)) setItems((cur) => mergeHistory(cur, stored));
+      } catch {
+        /* offline: the next reconnect retries */
+      }
+    };
+
+    const onMessage = (e: MessageEvent) => {
       let ev: Envelope;
       try {
         ev = JSON.parse(e.data);
@@ -103,10 +144,12 @@ export function useAguiStream(
         case "CUSTOM":
           if (ev.name === "widget" && ev.value?.widgetType) {
             const w = ev.value;
-            setItems((cur) => [
-              ...cur,
-              { id: crypto.randomUUID(), kind: "widget", widgetType: w.widgetType!, props: w.props },
-            ]);
+            const id = ev.messageId ?? crypto.randomUUID();
+            setItems((cur) =>
+              cur.some((i) => i.id === id)
+                ? cur
+                : [...cur, { id, kind: "widget", widgetType: w.widgetType!, props: w.props }],
+            );
           } else if (ev.name === "member_updated" && ev.value?.memberId) {
             onMemberUpdated.current?.(ev.value.memberId);
           } else if (ev.name === "history_cleared") {
@@ -130,8 +173,29 @@ export function useAguiStream(
       }
     };
 
-    return () => es.close();
-  }, [conversationId]);
+    const connect = () => {
+      es = new EventSource(`/api/events?conversationId=${encodeURIComponent(conversationId)}`);
+      es.onmessage = onMessage;
+      // Fires on the first connect and on every automatic reconnect.
+      es.onopen = () => void resync();
+    };
+    connect();
+
+    // Mobile browsers kill background connections; on return, revive the
+    // stream if the browser gave up on it and catch up either way.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (es.readyState === EventSource.CLOSED) connect();
+      else void resync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      es.close();
+    };
+  }, [conversationId, memberId]);
 
   const sendMessage = useCallback(
     async (text: string) => {
