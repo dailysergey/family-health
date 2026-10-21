@@ -90,7 +90,12 @@ export function MobileShell({
         onChatToggle={() => setMobileChat((v) => !v)}
       />
 
-      <ScrollToTop />
+      {/* Keep clear of the chat: hidden under the mobile drawer, left of the desktop column */}
+      <ScrollToTop
+        className={`${mobileChat ? "max-md:hidden" : ""} ${
+          deskChat === true ? "md:right-[404px]" : deskChat === false ? "md:right-6" : "md:right-6 xl:right-[404px]"
+        }`}
+      />
     </>
   );
 }
